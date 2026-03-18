@@ -1,0 +1,138 @@
+/* Fichero CROAF */
+
+.fichero{
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.fichero__side{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.03);
+  padding: 14px;
+}
+
+.fichero__block{ margin-bottom: 12px; }
+
+.fichero__label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.fichero__select,
+.fichero__input{
+  width: 100%;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,.12);
+  color: var(--text);
+  padding: 0 10px;
+  outline: none;
+}
+
+.fichero__select:disabled,
+.fichero__input:disabled{
+  opacity: .6;
+}
+
+.fichero__goto{
+  display:flex;
+  gap: 8px;
+}
+
+.fichero__meta{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.fichero__status{ line-height: 1.35; margin-bottom: 6px; }
+
+.fichero__main{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.03);
+  overflow: hidden;
+}
+
+.fichero__toolbar{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.10);
+  flex-wrap: wrap;
+}
+
+.fichero__viewer{
+  position: relative;
+  min-height: 60vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 12px;
+}
+
+.fichero__img{
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,.18);
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+  image-rendering: auto;
+}
+
+.fichero__loading{
+  position:absolute;
+  inset: 0;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.spinner{
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 3px solid rgba(255,255,255,.25);
+  border-top-color: rgba(255,255,255,.80);
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes spin{
+  to{ transform: rotate(360deg); }
+}
+
+@media (max-width: 900px){
+  .fichero{ grid-template-columns: 1fr; }
+}
+.fichero__viewer{
+  position: relative;
+  min-height: 60vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 12px;
+}
+
+.fichero__empty{
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 18px 16px;
+  color: var(--muted);
+  background: rgba(0,0,0,.06);
+  max-width: 520px;
+  text-align: center;
+}

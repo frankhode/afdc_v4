@@ -1,0 +1,1104 @@
+/* AFDC v1 - CSS base (simple, limpio y fácil de retocar) */
+:root{
+  --bg: #0b0c10;
+  --panel: #111318;
+  --panel2: #151821;
+  --text: #e8eaf0;
+  --muted: #a9afbf;
+  --link: #b9c7ff;
+  --border: rgba(255,255,255,.10);
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --radius: 14px;
+  --pad: 16px;
+  --max: 1100px;
+  --topbar-h: 56px;
+  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+}
+
+*{ box-sizing: border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background: radial-gradient(1200px 800px at 20% 0%, rgba(85,120,255,.25), transparent 55%),
+              radial-gradient(900px 700px at 80% 10%, rgba(140,90,255,.18), transparent 55%),
+              var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+a{ color: var(--link); text-decoration: none; }
+a:hover{ text-decoration: underline; }
+
+.app{ min-height:100%; display:flex; flex-direction:column; }
+
+header.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 9000;
+  isolation: isolate;
+  height: var(--topbar-h);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 0 18px;
+  background: rgba(17,19,24,.75);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
+}
+
+.topbar__left,
+.topbar__right{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.topbar__right{ justify-content:flex-end; }
+
+.brand__home{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--text);
+}
+
+.brand__home:hover{ text-decoration:none; }
+.brand__icon{ opacity: .95; }
+
+
+.brand__link{
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--text);
+}
+
+.nav{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+
+.nav__link{
+  display:inline-flex;
+  align-items:center;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--muted);
+  border: 1px solid transparent;
+}
+
+.nav__link:hover{
+  color: var(--text);
+  text-decoration:none;
+  border-color: var(--border);
+  background: rgba(255,255,255,.04);
+}
+
+.nav__link.is-active{
+  color: var(--text);
+  background: rgba(185,199,255,.10);
+  border-color: rgba(185,199,255,.18);
+}
+
+.container{
+  width: min(var(--max), calc(100% - 32px));
+  margin: 18px auto 28px;
+  padding: 0;
+  flex: 1;
+}
+
+.card{
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.h1{ font-size: 22px; margin: 0 0 10px; }
+.p{ margin: 0 0 12px; color: var(--muted); line-height: 1.45; }
+
+.kbd{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  text-decoration:none;
+  cursor:pointer;
+}
+.btn:hover{ background: rgba(255,255,255,.07); text-decoration:none; }
+
+.footer{
+  border-top: 1px solid var(--border);
+  background: rgba(17,19,24,.5);
+}
+.footer__inner{
+  width: min(var(--max), calc(100% - 32px));
+  margin: 0 auto;
+  padding: 12px 0;
+  color: var(--muted);
+  display:flex;
+  gap: 10px;
+  align-items:center;
+}
+.muted{ color: var(--muted); }
+
+/* --- Nav dropdown (Fútbol) --- */
+.nav__group{ position:relative; display:inline-flex; }
+.nav__toggle{ cursor:pointer; background: transparent; }
+.nav__caret{ font-size: 12px; opacity: .85; margin-left: 2px; }
+
+.nav__dropdown{
+  display:none;
+  position:absolute;
+  top: calc(100% + 8px);
+  left: auto;
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(18,20,26,.98);
+  backdrop-filter: none;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+  z-index: 6000;
+}
+/* dropdown alineado a la izquierda (para el botón "Menú") */
+.nav__dropdown--left,
+.nav__group--left .nav__dropdown{
+  left: 0;
+  right: auto;
+  z-index: 6000;
+}
+
+.nav__head{
+  padding: 8px 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  opacity: .85;
+}
+
+.nav__sep{
+  height: 1px;
+  margin: 6px;
+  background: var(--border);
+}
+
+.nav__drop.is-disabled{
+  opacity: .55;
+  pointer-events: none;
+}
+
+/* --- Dropdown "Guardar para revisar" integrado al botón (compacto, ancho = botón) --- */
+.review-dd{
+  position: relative;
+  display: inline-flex;
+}
+
+/* el menú se “acopla”: mismo ancho que el botón, sin min-width grande */
+.review-dd [data-review-menu]{
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 6px !important;
+  border-radius: 14px !important;
+  background: rgba(18,20,26,.94) !important;
+  border: 1px solid rgba(255,255,255,.14) !important;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22) !important; /* más sutil */
+  color: #fff !important;
+}
+
+/* “items” del menú: look de opción, no de botón dentro de botón */
+.review-dd [data-review-menu] .btn{
+  width: 100% !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  padding: 10px 12px !important;
+  height: auto !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+.review-dd [data-review-menu] .btn  .btn{
+  margin-top: 6px !important;
+}
+
+.review-dd [data-review-menu] .btn:hover{
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
+
+.review-dd [data-review-menu] .btn:active{
+  background: rgba(255,255,255,.12) !important;
+}
+
+/* opcional: que el menú “pegue” visualmente al botón */
+.review-dd [data-review-menu]{
+  top: calc(100% + 4px) !important;
+}
+/* --- Review dropdown: mismo estilo que el tema (claro/vintage/oscuro) --- */
+.review-dd{ position:relative; display:inline-flex; }
+
+.review-dd [data-review-menu]{
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 6px !important;
+  border-radius: 14px !important;
+
+  /* claves: usar variables del tema */
+  background: var(--afdc-card) !important;
+  border: 1px solid var(--afdc-border) !important;
+  color: var(--afdc-text) !important;
+
+  /* mismo “aire” que el resto de popovers */
+  backdrop-filter: blur(14px) !important;
+  box-shadow: var(--afdc-shadow, 0 18px 40px rgba(0,0,0,.25)) !important;
+}
+
+/* items: tipo opción (como theme__item), no “botón dentro de botón” */
+.review-dd [data-review-menu] .btn{
+  width: 100% !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  height: auto !important;
+  padding: 10px 10px !important;
+  border-radius: 10px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+}
+.review-dd [data-review-menu] .btn + .btn{ margin-top: 6px !important; }
+.review-dd [data-review-menu] .btn:hover{ background: var(--afdc-btn-hover) !important; }
+.review-dd [data-review-menu] .btn:active{ background: var(--afdc-btn) !important; }
+
+
+/* Abierto por click (ver app.js) */
+.nav__group.is-open .nav__dropdown{
+  display:block;
+}
+
+.nav__drop{
+  display:block;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-decoration:none;
+  color: var(--muted);
+}
+
+.nav__drop:hover{
+  color: var(--text);
+  background: rgba(185,199,255,.10);
+}
+
+.nav__drop.is-active{
+  color: var(--text);
+  background: rgba(185,199,255,.14);
+}
+
+/* Unificar tipografía del botón del menú con los links */
+button.nav__link {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+
+  background: transparent;
+  border: 0;
+  padding: 0 10px;   /* igual que .nav__link */
+  height: 34px;      /* igual que .nav__link */
+}
+
+/* Evitar estilos nativos de botón */
+button.nav__link {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* =========================
+   THEMES (AFDC v1)
+   Uso: <html class="theme-dark"> ... (por defecto dark)
+        <html class="theme-light">
+        <html class="theme-vintage">
+   ========================= */
+
+:root{
+  /* Dark default */
+  --afdc-bg: radial-gradient(1200px 800px at 20% 0%, rgba(85,120,255,.25), transparent 55%),
+             radial-gradient(900px 700px at 80% 10%, rgba(140,90,255,.18), transparent 55%),
+             #070A12;
+  --afdc-text: rgba(255,255,255,.92);
+  --afdc-muted: rgba(255,255,255,.65);
+
+  --afdc-topbar: rgba(10,12,18,.75);
+  --afdc-card: rgba(255,255,255,.06);
+  --afdc-border: rgba(255,255,255,.10);
+
+  --afdc-btn: rgba(255,255,255,.06);
+  --afdc-btn-hover: rgba(255,255,255,.10);
+  --afdc-link: rgba(140,180,255,.95);
+}
+
+/* Aplicación general (sin pisar layout) */
+body{
+  background: var(--afdc-bg);
+  color: var(--afdc-text);
+}
+
+a{ color: var(--afdc-link); }
+
+header.topbar{
+  background: var(--afdc-topbar);
+  border-bottom: 1px solid var(--afdc-border);
+}
+
+.card{
+  background: var(--afdc-card);
+  border: 1px solid var(--afdc-border);
+}
+
+.btn, .pagebtn, .nav__link, .nav__toggle{
+  background: var(--afdc-btn);
+  border: 1px solid var(--afdc-border);
+  color: var(--afdc-text);
+}
+.btn:hover, .pagebtn:hover, .nav__link:hover, .nav__toggle:hover{
+  background: var(--afdc-btn-hover);
+}
+
+/* Tablas (si usás la clase afdc-table o tablas generales) */
+.afdc-table th, .afdc-table td,
+table th, table td{
+  border-bottom-color: var(--afdc-border);
+}
+
+/* =========================
+   THEME: LIGHT
+   ========================= */
+html.theme-light{
+  --afdc-bg: #f4f6fb;
+  --afdc-text: rgba(10,12,18,.92);
+  --afdc-muted: rgba(10,12,18,.62);
+
+  --afdc-topbar: rgba(255,255,255,.80);
+  --afdc-card: rgba(255,255,255,.92);
+  --afdc-border: rgba(10,12,18,.12);
+
+  --afdc-btn: rgba(10,12,18,.04);
+  --afdc-btn-hover: rgba(10,12,18,.08);
+  --afdc-link: rgba(20,80,200,.95);
+}
+
+/* =========================
+   THEME: VINTAGE
+   (papel + tinta)
+   ========================= */
+html.theme-vintage{
+  --afdc-bg: radial-gradient(900px 700px at 30% 0%, rgba(120,90,40,.18), transparent 55%),
+             radial-gradient(900px 700px at 80% 20%, rgba(60,90,80,.12), transparent 55%),
+             #f1e6cf;
+  --afdc-text: rgba(35,25,15,.92);
+  --afdc-muted: rgba(35,25,15,.62);
+
+  --afdc-topbar: rgba(245,236,216,.82);
+  --afdc-card: rgba(252,246,232,.86);
+  --afdc-border: rgba(55,40,25,.18);
+
+  --afdc-btn: rgba(55,40,25,.06);
+  --afdc-btn-hover: rgba(55,40,25,.10);
+  --afdc-link: rgba(120,60,10,.95);
+}
+html.theme-light body { 
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+
+/* ============ Brand + Theme dropdown (header) ============ */
+
+.brand__logo{
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+
+.brand__text{
+  font-weight: 700;
+  letter-spacing: .2px;
+  font-size: 14px;
+  opacity: .95;
+  white-space: nowrap;
+}
+
+/* Theme dropdown */
+.theme{ position: relative; }
+.theme__btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  cursor:pointer;
+}
+.theme__btn:hover{ background: rgba(255,255,255,.06); }
+.theme__label{ font-size: 13px; opacity: .9; }
+.theme__icon{ font-size: 14px; line-height: 1; }
+.theme__chev{ font-size: 12px; opacity: .7; transform: translateY(-1px); }
+
+.theme__menu{
+  position:absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  min-width: 160px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  z-index: 2000;
+}
+.theme__item{
+  width:100%;
+  text-align:left;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor:pointer;
+  font-size: 13px;
+}
+.theme__item:hover{ background: rgba(255,255,255,.08); }
+.theme__item.is-active{
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+}
+
+/* En mobile, evitamos que se "escape" */
+@media (max-width: 640px){
+  .brand{ gap:10px; }
+  .theme__label{ display:none; } /* deja solo el sol */
+  .theme__menu{ 
+    left:auto; right: 0; 
+    z-index: 6000;
+  }
+}
+
+/* === VINTAGE FIX (contraste + botones + forms) === */
+html.theme-vintage{
+  /* texto */
+  --afdc-text: #2b2016;
+  --afdc-muted: rgba(43,32,22,.72);
+  --afdc-placeholder: rgba(43,32,22,.45);
+
+  /* superficies */
+  --afdc-surface: rgba(252,246,232,.88);
+  --afdc-surface-2: rgba(55,40,25,.06);
+
+  /* bordes/sombras */
+  --afdc-border: rgba(55,40,25,.22);
+  --afdc-shadow: 0 18px 40px 0 rgba(55,40,25,.20);
+
+  /* botones */
+  --afdc-btn: rgba(55,40,25,.10);
+  --afdc-btn-hover: rgba(55,40,25,.16);
+  --afdc-btn-active: rgba(55,40,25,.22);
+  --afdc-btn-text: #2b2016;
+}
+
+/* Texto base: evita “blanco fantasma” */
+html.theme-vintage body,
+html.theme-vintage .card,
+html.theme-vintage .panel,
+html.theme-vintage main{
+  color: var(--afdc-text) !important;
+}
+
+/* Labels / ayudas / textos tenues */
+html.theme-vintage label,
+html.theme-vintage .muted,
+html.theme-vintage .hint,
+html.theme-vintage small{
+  color: var(--afdc-muted) !important;
+}
+
+/* Inputs: fondo papel + placeholder legible */
+html.theme-vintage input[type="text"],
+html.theme-vintage input[type="search"],
+html.theme-vintage input[type="number"],
+html.theme-vintage select,
+html.theme-vintage textarea{
+  color: var(--afdc-text) !important;
+  background: rgba(252,246,232,.78) !important;
+  border-color: var(--afdc-border) !important;
+}
+html.theme-vintage input::placeholder,
+html.theme-vintage textarea::placeholder{
+  color: var(--afdc-placeholder) !important;
+}
+
+/* Botones genéricos (incluye Buscar/Limpiar) */
+html.theme-vintage button,
+html.theme-vintage .btn,
+html.theme-vintage a.btn,
+html.theme-vintage input[type="submit"]{
+  color: var(--afdc-btn-text) !important;
+  background: var(--afdc-btn) !important;
+  border-color: var(--afdc-border) !important;
+}
+html.theme-vintage button:hover,
+html.theme-vintage .btn:hover,
+html.theme-vintage a.btn:hover,
+html.theme-vintage input[type="submit"]:hover{
+  background: var(--afdc-btn-hover) !important;
+}
+html.theme-vintage button:active,
+html.theme-vintage .btn:active,
+html.theme-vintage a.btn:active,
+html.theme-vintage input[type="submit"]:active{
+  background: var(--afdc-btn-active) !important;
+}
+
+/* Estados disabled: que se note, pero sin “gris muerto” */
+html.theme-vintage button:disabled,
+html.theme-vintage .btn:disabled,
+html.theme-vintage input:disabled,
+html.theme-vintage select:disabled{
+  opacity: .55 !important;
+  filter: saturate(.85);
+  cursor: not-allowed !important;
+}
+
+/* Menús dropdown (Tema / Fútbol / etc) */
+html.theme-vintage .theme__menu,
+html.theme-vintage .nav__dropdown{
+  background: var(--afdc-surface) !important;
+  border-color: var(--afdc-border) !important;
+  box-shadow: var(--afdc-shadow) !important;
+}
+html.theme-vintage .theme__item,
+html.theme-vintage .nav__drop{
+  color: var(--afdc-text) !important;
+}
+html.theme-vintage .theme__item:hover,
+html.theme-vintage .nav__drop:hover{
+  background: rgba(55,40,25,.08) !important;
+}
+
+/* Tabla tools bar (tu módulo) */
+html.theme-vintage .afdc-table-tools{
+  background: var(--afdc-surface-2) !important;
+  border-color: var(--afdc-border) !important;
+}
+
+/* === VINTAGE: logo + botón Tema === */
+html.theme-vintage .brand__text,
+html.theme-vintage .brand__link,
+html.theme-vintage .brand a{
+  color: var(--afdc-text) !important;
+  opacity: 1 !important;
+}
+
+html.theme-vintage .brand__logo{
+  background: rgba(55,40,25,.10) !important;
+  border-color: var(--afdc-border) !important;
+  box-shadow: 0 6px 18px 0 rgba(55,40,25,.18) !important;
+}
+
+/* Botón Tema (pill) */
+html.theme-vintage .theme__btn{
+  color: var(--afdc-text) !important;
+  background: rgba(55,40,25,.10) !important;
+  border-color: var(--afdc-border) !important;
+  opacity: 1 !important;
+}
+html.theme-vintage .theme__btn:hover{
+  background: rgba(55,40,25,.16) !important;
+}
+html.theme-vintage .theme__btn svg,
+html.theme-vintage .theme__btn i{
+  color: var(--afdc-text) !important;
+  opacity: 1 !important;
+}
+
+/* === VINTAGE: nav links (Home / Buscador / etc.) === */
+html.theme-vintage .nav__link{
+  color: var(--afdc-text) !important;
+  background: rgba(55,40,25,.08) !important;
+  border-color: var(--afdc-border) !important;
+}
+
+html.theme-vintage .nav__link:hover{
+  background: rgba(55,40,25,.14) !important;
+}
+
+html.theme-vintage .nav__link.is-active{
+  color: var(--afdc-text) !important;
+  background: rgba(55,40,25,.18) !important;
+  border-color: rgba(55,40,25,.30) !important;
+}
+
+/* === VINTAGE: texto legible en tablas === */
+html.theme-vintage table,
+html.theme-vintage table *{
+  color: var(--afdc-text) !important;
+}
+
+/* Encabezados de tabla: un poco más tenue pero legible */
+html.theme-vintage thead th,
+html.theme-vintage table th{
+  color: rgba(43,32,22,.78) !important;
+}
+
+/* Links dentro de tablas (ej: "Ver resultados") */
+html.theme-vintage table a{
+  color: rgba(95,55,25,.95) !important;
+}
+html.theme-vintage table a:hover{
+  text-decoration: underline;
+}
+
+/* Contadores / texto auxiliar típico arriba de la tabla */
+html.theme-vintage .afdc-table-meta,
+html.theme-vintage .table-meta,
+html.theme-vintage .results-meta,
+html.theme-vintage .chip,
+html.theme-vintage .afdc-table-note,
+html.theme-vintage .muted{
+  color: var(--afdc-muted) !important;
+}
+
+/* ===== Edición impresa ===== */
+
+.ei-module {
+    display: flex;
+    height: calc(100vh - var(--header-height, 64px));
+}
+
+/* Sidebar */
+.ei-sidebar {
+    width: 280px;
+    padding: 1rem;
+    background: var(--afdc-panel-bg);
+    border-right: 1px solid var(--afdc-border);
+}
+
+/* Viewer */
+.ei-viewer {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Mesa */
+.ei-desk {
+    width: 100%;
+    height: 100%;
+    background: var(--ei-desk-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Alfombrilla */
+.ei-mat {
+    background: var(--ei-mat-bg);
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: var(--ei-mat-shadow);
+}
+
+/* Spread */
+.ei-spread {
+    display: flex;
+    gap: 12px;
+    transform-origin: center center;
+}
+
+.ei-page {
+    background: #fff;
+    box-shadow: var(--ei-page-shadow);
+}
+
+.ei-page.blank {
+    background: transparent;
+    box-shadow: none;
+}
+
+/* Minimap */
+.ei-minimap {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    width: 160px;
+    height: 120px;
+    display: none;
+    background: var(--ei-mat-bg);
+    box-shadow: var(--ei-page-shadow);
+}
+
+/* ===== THEMES ===== */
+
+html.theme-light {
+    --ei-desk-bg: radial-gradient(#ddd, #bbb);
+    --ei-mat-bg: #f5f5f5;
+    --ei-mat-shadow: 0 20px 40px rgba(0,0,0,.2);
+    --ei-page-shadow: 0 8px 20px rgba(0,0,0,.25);
+}
+
+html.theme-dark {
+    --ei-desk-bg: radial-gradient(#222, #111);
+    --ei-mat-bg: #2a2a2a;
+    --ei-mat-shadow: 0 20px 40px rgba(0,0,0,.6);
+    --ei-page-shadow: 0 8px 20px rgba(0,0,0,.6);
+}
+
+html.theme-vintage {
+    --ei-desk-bg: radial-gradient(#7a6a58, #5e5043);
+    --ei-mat-bg: #e8dfd2;
+    --ei-mat-shadow: 0 20px 40px rgba(60,40,20,.4);
+    --ei-page-shadow: 0 8px 20px rgba(60,40,20,.5);
+}
+
+/* =========================
+   HERO (futbol.php)
+   ========================= */
+
+.hero{
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  height: clamp(340px, 52vh, 560px);
+
+  /* FULL BLEED (a lo ancho de la ventana) */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+
+  /* SIN TARJETA */
+  border-radius: 0;
+  box-shadow: none;
+}
+
+
+.hero__media{ position:absolute; inset:0; }
+
+.hero__img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--hero-x, 50%) var(--hero-y, 50%);
+  display: block;
+  transform: scale(1.01); /* evita bordes por subpixel */
+}
+
+/* Fade lavadito: left->right + down */
+.hero__shade{
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 46%, rgba(0,0,0,.10) 74%, rgba(0,0,0,0) 100%),
+    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.10) 55%, rgba(0,0,0,.28) 100%);
+}
+
+html.theme-light .hero__shade{
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.88) 0%, rgba(255,255,255,.58) 46%, rgba(255,255,255,.18) 74%, rgba(255,255,255,0) 100%),
+    linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.12) 55%, rgba(255,255,255,.34) 100%);
+}
+
+html.theme-vintage .hero__shade{
+  background:
+    linear-gradient(90deg, rgba(241,230,207,.92) 0%, rgba(241,230,207,.62) 46%, rgba(241,230,207,.18) 74%, rgba(241,230,207,0) 100%),
+    linear-gradient(180deg, rgba(241,230,207,0) 0%, rgba(241,230,207,.12) 55%, rgba(241,230,207,.34) 100%);
+}
+
+/* Ajuste encuadre para el "10" (tweak fino acá) */
+.hero--futbol{
+  --hero-x: 64%;
+  --hero-y: 56%;
+}
+
+.hero__content{
+  position: relative;
+  height: 100%;
+  width: min(var(--max), calc(100% - 32px));
+  margin: 0 auto;
+  padding: 18px 0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap: 8px;
+}
+
+.hero__kicker{
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .85;
+}
+
+.hero__title{
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.08;
+}
+
+.hero__lead{
+  margin: 0;
+  color: var(--afdc-muted);
+  line-height: 1.45;
+}
+
+.hero__actions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* Cuerpo normal, sin tarjetas */
+.futbol-body{
+  margin-top: 14px;
+}
+
+.futbol-links{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+@media (max-width: 640px){
+  .hero{ height: clamp(300px, 44vh, 440px); }
+  .hero__title{ font-size: 26px; }
+}
+
+.thumb-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.thumb-tile{
+  display:block;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow:hidden;
+  background: rgba(255,255,255,.03);
+  aspect-ratio: 4 / 3;
+  box-shadow: 0 8px 18px rgba(0,0,0,.12);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.thumb-tile:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(0,0,0,.18);
+}
+
+.thumb-tile img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+  display:block;
+}
+
+.thumb-missing{
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 12px;
+  opacity: .7;
+}
+
+/* --- Ver digital: fullscreen (imagen + carrete abajo) --- */
+.vd .viewerPro:fullscreen,
+.vd .viewerPro:-webkit-full-screen{
+  width: 100vw;
+  height: 100vh;
+  padding: 12px;
+  box-sizing: border-box;
+  background: rgba(0,0,0,.96);
+  position: relative; /* ancla para .topbar absoluta */
+}
+
+.vd .viewerPro:fullscreen .stage,
+.vd .viewerPro:-webkit-full-screen .stage{
+  min-height: 0; /* deja que el 1fr del grid mande */
+}
+
+.vd .viewerPro:fullscreen #mainImg,
+.vd .viewerPro:-webkit-full-screen #mainImg{
+  max-height: 100%;
+}
+/* --- ver_digital: fullscreen "compact" (solo ⛶ + ⋯) --- */
+.vd .viewerPro:fullscreen .topbar,
+.vd .viewerPro:-webkit-full-screen .topbar{
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  left: auto;
+  width: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  justify-content: flex-end;
+  z-index: 20; /* por arriba de la stage */
+  pointer-events: auto;
+}
+
+.vd .viewerPro:fullscreen .topbar .navBtns,
+.vd .viewerPro:-webkit-full-screen .topbar .navBtns{
+  display: none !important;
+}
+
+/* que el menú ⋯ no quede pegado al borde */
+.vd .viewerPro:fullscreen .topbar .metaRight,
+.vd .viewerPro:-webkit-full-screen .topbar .metaRight{
+  gap: 10px;
+}
+
+/* el dropdown del ⋯ en fullscreen cae “prolijo” */
+.vd .viewerPro:fullscreen .menu,
+.vd .viewerPro:-webkit-full-screen .menu{
+  top: 48px;
+  z-index: 30;
+}
+/* ver_digital fullscreen: botones visibles (alto contraste) */
+.vd #viewerPro:fullscreen .metaRight .btn.menuBtn,
+.vd #viewerPro:-webkit-full-screen .metaRight .btn.menuBtn{
+  background: rgba(0,0,0,.55) !important;
+  border-color: rgba(255,255,255,.28) !important;
+  color: rgba(255,255,255,.95) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* asegurar que arriba a la derecha quede siempre por encima */
+.vd #viewerPro:fullscreen .topbar,
+.vd #viewerPro:-webkit-full-screen .topbar{
+  z-index: 9999;
+}
+
+/* ===============================
+   Conjuntos: responsive / densidad
+   =============================== */
+
+.cj{
+  /* leve ajuste general sin romper el tema */
+  font-size: 14px;
+}
+
+/* Grilla principal (col izq + panel) */
+.cj > div[style*="grid-template-columns: 360px 1fr"]{
+  grid-template-columns: clamp(260px, 22vw, 340px) 1fr !important;
+  gap: 12px !important;
+}
+
+/* Panels internos (izq + der) */
+.cj > div[style*="grid-template-columns: 360px 1fr"] > div{
+  padding: 10px !important;
+}
+
+/* Lista de sobres: más compacta */
+.cj #sobresList > div{
+  padding: 6px 8px !important;
+  gap: 8px !important;
+  border-radius: 12px !important;
+}
+
+/* Botones dentro de Conjuntos: más bajos (se siente mejor en pantallas grandes) */
+.cj .btn{
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+/* Selects con clase btn */
+.cj select.btn{
+  height: 34px;
+}
+
+/* Títulos un poco más contenidos */
+.cj .col-title{
+  font-size: 18px !important;
+}
+
+/* Miniaturas: más densas */
+.cj #photosWrap .thumb-grid{
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+/* ====== Breakpoints ====== */
+
+/* Pantallas muy grandes: un toque más “dense” aún */
+@media (min-width: 1400px){
+  .cj{
+    font-size: 13.5px;
+  }
+  .cj > div[style*="grid-template-columns: 360px 1fr"]{
+    grid-template-columns: clamp(240px, 20vw, 320px) 1fr !important;
+    gap: 12px !important;
+  }
+}
+
+/* Tablets / pantallas medianas: columna izq un poquito más ancha */
+@media (max-width: 1100px){
+  .cj > div[style*="grid-template-columns: 360px 1fr"]{
+    grid-template-columns: clamp(280px, 34vw, 380px) 1fr !important;
+  }
+}
+
+/* Mobile: apilamos */
+@media (max-width: 900px){
+  .cj > div[style*="grid-template-columns: 360px 1fr"]{
+    grid-template-columns: 1fr !important;
+  }
+  .cj #photosWrap .thumb-grid{
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}

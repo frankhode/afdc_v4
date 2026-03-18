@@ -1,0 +1,18 @@
+# Config sensible
+config.php
+
+# Cache y temporales
+cache/
+tmp/
+
+# Generados
+thumbs/
+exports/
+
+# Logs
+*.log
+
+# Pesados
+*.tif
+*.tiff
+*.zip

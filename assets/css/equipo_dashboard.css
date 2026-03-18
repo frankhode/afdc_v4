@@ -1,0 +1,459 @@
+:root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1d2230;
+    --line: #2a3142;
+    --text: #e9edf5;
+    --muted: #a8b0c0;
+    --accent: #6ea8fe;
+    --win: #1f6f43;
+    --draw: #7a6221;
+    --loss: #7b2d2d;
+    --shadow: 0 10px 30px rgba(0,0,0,.25);
+    --radius: 14px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.team-dashboard-body {
+    min-height: 100vh;
+}
+
+.team-dashboard {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 18px;
+}
+
+.td-topbar {
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    box-shadow: var(--shadow);
+}
+
+.td-title {
+    margin: 0 0 4px 0;
+    font-size: 28px;
+    line-height: 1.1;
+}
+
+.td-subtitle {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.td-filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.td-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+}
+
+.td-field label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.td-field select {
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    padding: 0 12px;
+    outline: none;
+}
+
+.td-layout {
+    display: grid;
+    grid-template-columns: 290px minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+}
+
+.td-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+
+.td-card-title {
+    margin: 0 0 14px 0;
+    font-size: 18px;
+}
+
+.td-sidebar,
+.td-main,
+.td-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.td-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 10px;
+}
+
+.td-stat {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-2);
+    padding: 12px;
+}
+
+.td-stat-label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.td-stat strong {
+    font-size: 22px;
+}
+
+.td-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.td-list-item {
+    display: flex;
+    align-items: center;
+}
+
+.td-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    font-size: 14px;
+}
+
+.td-year-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.td-year-link {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+}
+
+.td-year-link.is-active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.td-main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.td-section-title {
+    margin: 0;
+    font-size: 24px;
+}
+
+.td-section-subtitle {
+    color: var(--muted);
+    margin-top: 4px;
+    font-size: 14px;
+}
+
+.td-view-toggle {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.td-toggle-btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+}
+
+.td-toggle-btn.is-active {
+    color: var(--text);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.td-torneo-block {
+    padding-top: 12px;
+}
+
+.td-torneo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 0 2px 12px 2px;
+}
+
+.td-torneo-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.td-counter {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.td-match-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.td-match-row {
+    display: grid;
+    gap: 10px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-2);
+    padding: 12px;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.td-match-row:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255,255,255,.22);
+}
+
+.td-match-row.is-selected {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.td-match-row.win {
+    border-left: 5px solid #2ea35f;
+}
+
+.td-match-row.draw {
+    border-left: 5px solid #c69a24;
+}
+
+.td-match-row.loss {
+    border-left: 5px solid #d05757;
+}
+
+.td-match-list-card .td-match-row,
+.td-torneo-block .td-match-row {
+    grid-template-columns: 110px 1fr 2fr;
+}
+
+.td-match-list-card .td-match-row .td-match-torneo {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.td-match-list-card .td-match-row {
+    grid-template-columns: 110px 1.4fr 1.1fr 2fr;
+}
+
+.td-match-date,
+.td-match-fase,
+.td-match-torneo {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.td-match-score {
+    font-weight: 600;
+}
+
+.td-detail-top {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.td-result-pill {
+    width: fit-content;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+}
+
+.td-result-pill.win {
+    background: rgba(46,163,95,.14);
+    border-color: rgba(46,163,95,.35);
+    color: #89dbac;
+}
+
+.td-result-pill.draw {
+    background: rgba(198,154,36,.14);
+    border-color: rgba(198,154,36,.35);
+    color: #f0cd76;
+}
+
+.td-result-pill.loss {
+    background: rgba(208,87,87,.14);
+    border-color: rgba(208,87,87,.35);
+    color: #f0a0a0;
+}
+
+.td-detail-score {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.td-detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+}
+
+.td-dl-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.td-dl-row:last-child {
+    border-bottom: none;
+}
+
+.td-dl-row dt {
+    color: var(--muted);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.td-dl-row dd {
+    margin: 0;
+}
+
+.td-dl-row code {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.td-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.td-action-btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+}
+
+.td-action-btn:hover {
+    border-color: var(--accent);
+}
+
+.td-empty {
+    color: var(--muted);
+    padding: 8px 0;
+}
+
+@media (max-width: 1200px) {
+    .td-layout {
+        grid-template-columns: 250px minmax(0,1fr);
+    }
+
+    .td-detail {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 860px) {
+    .td-topbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .td-filters {
+        justify-content: stretch;
+    }
+
+    .td-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .td-main-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .td-match-list-card .td-match-row,
+    .td-torneo-block .td-match-row {
+        grid-template-columns: 1fr;
+    }
+
+    .td-dl-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+}

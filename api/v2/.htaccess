@@ -1,0 +1,10 @@
+RewriteEngine On
+RewriteBase /afdc_v2/api/v2/
+
+# Si existe archivo/carpeta, no reescribir
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Soporta rutas anidadas: /collections/list -> collections/list.php
+RewriteRule ^(.+)$ $1.php [L]

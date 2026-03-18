@@ -1,0 +1,389 @@
+/* =========================================================
+   Campeonatos - Editor master/detail responsive
+   ========================================================= */
+
+.cmp-wrap-editor {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.cmp-pagehead-editor {
+  margin-bottom: 12px;
+}
+
+.cmp-actions-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cmp-editor-shell {
+  min-width: 0;
+}
+
+.cmp-editor-toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.cmp-grid-edit {
+  min-width: 0;
+}
+
+/* =========================
+   MODO ÁRBOL
+   ========================= */
+.cmp-editor-shell.is-tree-mode .cmp-grid-edit {
+  display: block;
+}
+
+.cmp-editor-shell.is-tree-mode .cmp-edit-panel--tree {
+  width: 100%;
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+}
+
+.cmp-editor-shell.is-tree-mode .cmp-node-panels {
+  display: none;
+}
+
+/* =========================
+   MODO NODO
+   ========================= */
+.cmp-editor-shell.is-node-mode .cmp-grid-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.cmp-editor-shell.is-node-mode .cmp-edit-panel--tree {
+  display: none;
+}
+
+.cmp-node-panels {
+  min-width: 0;
+}
+
+.cmp-editor-shell.is-node-mode .cmp-node-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  align-items: start;
+}
+
+.cmp-edit-panel {
+  min-width: 0;
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: 12px;
+}
+
+.cmp-edit-panel--detail,
+.cmp-edit-panel--actions {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  align-self: start;
+}
+
+.cmp-edit-panel--actions {
+  position: sticky;
+  top: 10px;
+}
+
+.cmp-pane-head h3,
+.cmp-subsection h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+/* =========================
+   ÁRBOL
+   ========================= */
+.cmp-tree,
+.cmp-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.cmp-tree {
+  padding-left: 0;
+}
+
+.cmp-tree-item {
+  margin: 4px 0;
+}
+
+.cmp-tree-link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding: 7px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  max-width: 100%;
+}
+
+.cmp-tree-link.is-current {
+  background: rgba(13, 110, 253, 0.10);
+  font-weight: 600;
+}
+
+.cmp-node-type {
+  color: #6b7280;
+  font-size: 11px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cmp-node-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.3;
+}
+
+.cmp-node-count {
+  color: #6b7280;
+  font-size: 11px;
+  white-space: nowrap;
+  align-self: start;
+}
+
+/* =========================
+   META / FORM / TABLAS
+   ========================= */
+.cmp-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.35;
+  border: 1px solid #d9dee7;
+  background: #f8f9fb;
+  color: #4b5563;
+}
+
+.cmp-chip-manual {
+  background: #eef6ff;
+}
+
+.cmp-chip-empty {
+  background: #faf3f3;
+}
+
+.cmp-node-breadcrumb {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.cmp-grid-node-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cmp-grid-node-meta > div {
+  border: 1px solid #d9dee7;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.cmp-muted {
+  display: block;
+  color: #6b7280;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.cmp-actions-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.cmp-form-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.cmp-form-grid label {
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.cmp-form-grid input,
+.cmp-form-grid select,
+.cmp-form-grid textarea {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+}
+
+.cmp-grid-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cmp-inline-form {
+  display: inline;
+}
+
+.cmp-nowrap {
+  white-space: nowrap;
+}
+
+.cmp-row-muted {
+  opacity: .7;
+}
+
+.cmp-table-wrap {
+  overflow: auto;
+  max-width: 100%;
+}
+
+.cmp-table {
+  width: 100%;
+  min-width: 620px;
+}
+
+.cmp-table th,
+.cmp-table td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.cmp-btn,
+.cmp-btn-primary,
+.cmp-btn-sm {
+  white-space: nowrap;
+}
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+@media (max-width: 1200px) {
+  .cmp-editor-shell.is-node-mode .cmp-node-panels {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+@media (max-width: 980px) {
+  .cmp-editor-shell.is-node-mode .cmp-node-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .cmp-edit-panel--actions {
+    position: static;
+    max-height: none;
+  }
+
+  .cmp-edit-panel--detail {
+    max-height: none;
+  }
+
+  .cmp-grid-node-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .cmp-grid-node-meta,
+  .cmp-grid-scores {
+    grid-template-columns: 1fr;
+  }
+
+  .cmp-table {
+    min-width: 520px;
+  }
+}
+
+/* =========================================================
+   Árbol colapsable
+   ========================================================= */
+
+.cmp-tree-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+}
+
+.cmp-tree-toggle,
+.cmp-tree-toggle-placeholder {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  margin-top: 4px;
+}
+
+.cmp-tree-toggle {
+  border: 1px solid #d9dee7;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.cmp-tree-toggle:hover {
+  background: #f6f8fb;
+}
+
+.cmp-tree-toggle-symbol {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cmp-tree-children {
+  margin-left: 30px;
+}
+
+.cmp-tree-item.is-collapsed > .cmp-tree-children {
+  display: none;
+}
+
+.cmp-tree-item.is-collapsed > .cmp-tree-row .cmp-tree-toggle-symbol {
+  content: "+";
+}
+
+.cmp-tree-item.is-collapsed > .cmp-tree-row .cmp-tree-toggle-symbol::before {
+  content: "+";
+}
+
+.cmp-tree-item:not(.is-collapsed) > .cmp-tree-row .cmp-tree-toggle-symbol::before {
+  content: "−";
+}
+
+.cmp-tree-item > .cmp-tree-row .cmp-tree-toggle-symbol {
+  font-size: 0;
+}
+
+/* más aire para el árbol en modo árbol */
+.cmp-editor-shell.is-tree-mode .cmp-edit-panel--tree .cmp-tree-link {
+  padding: 8px 10px;
+}
+
+.cmp-pane-head--with-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cmp-tree-head-actions {
+  display: flex;
+  gap: 6px;
+}
