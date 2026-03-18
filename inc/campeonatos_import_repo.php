@@ -110,6 +110,9 @@ function cmp_import_store_match(mysqli $db, int $importId, int $nodeId, array $m
         'goal_events' => $match['goal_events'] ?? null,
         'goal_events_count' => $match['goal_events_count'] ?? null,
         'import_warnings' => $match['import_warnings'] ?? null,
+
+        'scorers_home_raw' => $match['scorers_home_raw'] ?? null,
+        'scorers_away_raw' => $match['scorers_away_raw'] ?? null,
     ];
 
     $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -127,6 +130,60 @@ function cmp_import_store_match(mysqli $db, int $importId, int $nodeId, array $m
         $metaJson
     );
     $stmt->execute();
+    $partidoId = (int)$stmt->insert_id;
+    $stmt->close();
+
+    cmp_import_store_goal_events($db, $importId, $partidoId, $match['goal_events'] ?? []);
+}
+
+function cmp_import_store_goal_events(mysqli $db, int $importId, int $partidoId, array $events): void {
+    if (!$events) {
+        return;
+    }
+
+    $stmt = $db->prepare('
+        INSERT INTO cmp_importacion_goles
+        (importacion_id, partido_id, orden, team_side, team_name, jugador_raw, jugador_normalizado, minuto, goal_type, raw_fragment, creado_en, actualizado_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    foreach ($events as $ev) {
+        if (!is_array($ev)) {
+            continue;
+        }
+
+        $orden = (int)($ev['order'] ?? 0);
+        $teamSide = (string)($ev['team_side'] ?? 'desconocido');
+        $teamName = isset($ev['team_name']) ? (string)$ev['team_name'] : null;
+        $jugadorRaw = trim((string)($ev['player_raw'] ?? ''));
+        $jugadorNorm = isset($ev['player_normalized']) ? (string)$ev['player_normalized'] : null;
+        $minuto = isset($ev['minute']) && $ev['minute'] !== '' ? (int)$ev['minute'] : null;
+        $goalType = (string)($ev['goal_type'] ?? 'normal');
+        $rawFragment = isset($ev['raw_fragment']) ? (string)$ev['raw_fragment'] : null;
+
+        if ($jugadorRaw === '') {
+            continue;
+        }
+
+        $stmt->bind_param(
+            'iiissssiss',
+            $importId,
+            $partidoId,
+            $orden,
+            $teamSide,
+            $teamName,
+            $jugadorRaw,
+            $jugadorNorm,
+            $minuto,
+            $goalType,
+            $rawFragment
+        );
+        $stmt->execute();
+    }
+
     $stmt->close();
 }
 
@@ -262,4 +319,22 @@ function cmp_import_build_tree(array $nodes): array {
     }
     unset($node);
     return $root;
+}
+
+
+function cmp_import_get_goal_events(int $importId): array {
+    $db = cmp_db();
+    $sql = '
+        SELECT g.*
+        FROM cmp_importacion_goles g
+        WHERE g.importacion_id = ?
+        ORDER BY g.partido_id ASC, g.orden ASC, g.id ASC
+    ';
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param('i', $importId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
 }

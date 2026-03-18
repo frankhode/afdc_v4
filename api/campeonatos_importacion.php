@@ -98,6 +98,7 @@ $import = null;
 $nodes = [];
 $tree = [];
 $matches = [];
+$goalEvents = [];
 $audit = [
     'summary' => [
         'total' => 0,
@@ -122,6 +123,7 @@ try {
     $nodes = cmp_import_get_nodes($id);
     $tree = cmp_import_build_tree($nodes);
     $matches = cmp_import_get_matches($id);
+    $goalEvents = cmp_import_get_goal_events($id);
     $audit = cmp_build_text_audit((string)$import['texto_crudo'], $tree);
 } catch (Throwable $e) {
     $error = $e->getMessage();
@@ -170,6 +172,26 @@ cmp_render_header('Importación de campeonato');
   gap: 10px;
   flex-wrap: wrap;
 }
+.cmp-audit-row td {
+  background: #fafafa;
+  border-top: none;
+}
+
+.cmp-audit-box {
+  display: flex;
+  gap: 24px;
+  padding: 10px 0;
+  font-size: 12px;
+}
+
+.cmp-audit-col {
+  min-width: 180px;
+}
+
+.cmp-audit-col strong {
+  font-size: 11px;
+  color: #666;
+}
 </style>
 <section class="cmp-wrap">
   <nav class="cmp-breadcrumbs"><a href="campeonatos_importaciones.php">Importaciones</a> <span>/</span> <strong>Ver importación</strong></nav>
@@ -202,6 +224,7 @@ cmp_render_header('Importación de campeonato');
           <dt>Fuente URL</dt><dd><?= cmp_h((string)$import['fuente_url']) ?></dd>
           <dt>Nodos</dt><dd><?= count($nodes) ?></dd>
           <dt>Partidos</dt><dd><?= count($matches) ?></dd>
+          <dt>Goles</dt><dd><?= count($goalEvents) ?></dd>
         </dl>
       </section>
     </div>
@@ -284,6 +307,78 @@ cmp_render_header('Importación de campeonato');
                   <td><?= cmp_h($visitStatus) ?></td>
                   <td><?= cmp_h($goalText) ?></td>
                   <td class="cmp-source-line"><?= cmp_h($row['fuente_linea']) ?></td>
+                </tr>
+                <?php
+                  $events = $row['goal_events'] ?? [];
+
+                  if (is_string($events) && $events !== '') {
+                      $decodedEvents = json_decode($events, true);
+                      if (is_array($decodedEvents)) {
+                          $events = $decodedEvents;
+                      }
+                  }
+
+                  $homeGoals = [];
+                  $awayGoals = [];
+                  $unknownGoals = [];
+
+                  if (is_array($events)) {
+                      foreach ($events as $ev) {
+                          $name = trim((string)($ev['player_raw'] ?? ''));
+                          $side = trim((string)($ev['team_side'] ?? 'desconocido'));
+
+                          if ($name === '') {
+                              continue;
+                          }
+
+                          if ($side === 'local') {
+                              $homeGoals[] = $name;
+                          } elseif ($side === 'visitante') {
+                              $awayGoals[] = $name;
+                          } else {
+                              $unknownGoals[] = $name;
+                          }
+                      }
+                  }
+                ?>
+
+                <tr class="cmp-audit-row">
+                  <td colspan="12">
+                    <div class="cmp-audit-box">
+                      <div class="cmp-audit-col">
+                        <strong>LOCAL</strong><br>
+                        <?php if ($homeGoals): ?>
+                          <?php foreach ($homeGoals as $g): ?>
+                            - <?= cmp_h($g) ?><br>
+                          <?php endforeach; ?>
+                        <?php else: ?>
+                          <span class="cmp-muted">—</span>
+                        <?php endif; ?>
+                      </div>
+
+                      <div class="cmp-audit-col">
+                        <strong>VISITANTE</strong><br>
+                        <?php if ($awayGoals): ?>
+                          <?php foreach ($awayGoals as $g): ?>
+                            - <?= cmp_h($g) ?><br>
+                          <?php endforeach; ?>
+                        <?php else: ?>
+                          <span class="cmp-muted">—</span>
+                        <?php endif; ?>
+                      </div>
+
+                      <div class="cmp-audit-col">
+                        <strong>AMBIGUOS</strong><br>
+                        <?php if ($unknownGoals): ?>
+                          <?php foreach ($unknownGoals as $g): ?>
+                            - <?= cmp_h($g) ?><br>
+                          <?php endforeach; ?>
+                        <?php else: ?>
+                          <span class="cmp-muted">—</span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             <?php endif; ?>

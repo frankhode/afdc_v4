@@ -610,12 +610,13 @@ function cmp_looks_like_table_block(string $block): bool {
 }
 
 function cmp_extract_match_lines(string $text): array {
-    $lines = preg_split('/\n+/u', $text) ?: [];
+    $lines = preg_split('/\n/u', $text) ?: [];
     $matches = [];
     $order = 1;
+    $count = count($lines);
 
-    foreach ($lines as $line) {
-        $line = trim($line);
+    for ($i = 0; $i < $count; $i++) {
+        $line = trim($lines[$i]);
         if ($line === '') {
             continue;
         }
@@ -629,11 +630,127 @@ function cmp_extract_match_lines(string $text): array {
             continue;
         }
 
+        $scorerLines = [];
+        $j = $i + 1;
+
+        while ($j < $count) {
+            $next = trim($lines[$j]);
+
+            if ($next === '') {
+                $j++;
+                continue;
+            }
+
+            if (cmp_is_date_heading($next) || cmp_is_group_heading($next) || cmp_is_knockout_heading($next)) {
+                break;
+            }
+
+            if (cmp_parse_match_line($next) !== null) {
+                break;
+            }
+
+            if (cmp_is_scorers_line($next)) {
+                $scorerLines[] = $next;
+                $j++;
+                continue;
+            }
+
+            break;
+        }
+
+        [$homeScorers, $awayScorers, $goalTextRaw] = cmp_assign_scorer_lines_to_match(
+            $scorerLines,
+            (int)($parsed['home_goals'] ?? 0),
+            (int)($parsed['away_goals'] ?? 0)
+        );
+
+        $parsed['scorers_home_raw'] = $homeScorers;
+        $parsed['scorers_away_raw'] = $awayScorers;
+        $parsed['goal_text_raw'] = $goalTextRaw;
         $parsed['order'] = $order++;
+
         $matches[] = $parsed;
+
+        $i = $j - 1;
     }
 
     return $matches;
+}
+
+function cmp_is_scorers_line(string $line): bool {
+    $line = trim($line);
+    if ($line === '') {
+        return false;
+    }
+
+    if (preg_match('/^\[[^\]]+\]$/u', $line)) {
+        return true;
+    }
+
+    if (preg_match('/^\[[[:alpha:]].*$/u', $line)) {
+        return true;
+    }
+
+    return false;
+}
+
+function cmp_clean_scorers_line(string $line): string {
+    $line = trim($line);
+    $line = preg_replace('/^\[/u', '', $line) ?? $line;
+    $line = preg_replace('/\]$/u', '', $line) ?? $line;
+    return trim($line);
+}
+
+function cmp_assign_scorer_lines_to_match(array $scorerLines, int $homeGoals, int $awayGoals): array {
+    if ($homeGoals === 0 && $awayGoals === 0) {
+        return [null, null, null];
+    }
+
+    if ($scorerLines === []) {
+        return [null, null, null];
+    }
+
+    $clean = array_values(array_map('cmp_clean_scorers_line', $scorerLines));
+    $clean = array_values(array_filter($clean, static fn($v) => trim((string)$v) !== ''));
+
+    if ($clean === []) {
+        return [null, null, null];
+    }
+
+    $homeRaw = null;
+    $awayRaw = null;
+    $ambiguousRaw = null;
+
+    if (count($clean) >= 2) {
+        $homeRaw = $clean[0];
+        $awayRaw = $clean[1];
+    } elseif (count($clean) === 1) {
+        if ($homeGoals > 0 && $awayGoals === 0) {
+            $homeRaw = $clean[0];
+        } elseif ($awayGoals > 0 && $homeGoals === 0) {
+            $awayRaw = $clean[0];
+        } else {
+            $ambiguousRaw = $clean[0];
+        }
+    }
+
+    $parts = [];
+
+    if ($homeRaw !== null && $homeRaw !== '') {
+        $parts[] = 'LOCAL: ' . $homeRaw;
+    }
+
+    if ($awayRaw !== null && $awayRaw !== '') {
+        $parts[] = 'VISITANTE: ' . $awayRaw;
+    }
+
+    if ($ambiguousRaw !== null && $ambiguousRaw !== '') {
+        $parts[] = 'AMBIGUO: ' . $ambiguousRaw;
+    }
+
+    $goalTextRaw = $parts ? implode('; ', $parts) : null;
+
+    return [$homeRaw, $awayRaw, $goalTextRaw];
 }
 
 function cmp_line_is_noise(string $line): bool {

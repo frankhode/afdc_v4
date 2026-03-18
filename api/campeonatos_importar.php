@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../inc/campeonatos_helpers.php';
 cmp_require_bootstrap_if_available();
 require_once __DIR__ . '/../inc/campeonatos_parser.php';
+require_once __DIR__ . '/../inc/campeonatos_enriquecedor.php';
 require_once __DIR__ . '/../inc/campeonatos_import_repo.php';
 
 $error = null;
@@ -14,6 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $parsed = cmp_parse_import($sourceType, $sourceValue);
+
+        $db = cmp_db();
+        $parsed = cmp_enrich_import_with_teams($parsed, $db);
+        $parsed = cmp_enrich_import_with_goal_scorers($parsed);
+
         $importId = cmp_import_create($parsed, 'text', null, $sourceValue);
         header('Location: campeonatos_importacion.php?id=' . $importId);
         exit;

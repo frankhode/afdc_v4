@@ -245,44 +245,104 @@ function cmp_resolve_team_name(string $raw, array $catalog): array {
  * Goleadores
  * ========================================================= */
 
-function cmp_extract_goal_scorers_from_text(string $text, string $homeCanonical = '', string $awayCanonical = ''): array {
+function cmp_goal_text_strip_context(string $text): string {
     $text = trim($text);
     if ($text === '') {
-        return [];
+        return '';
     }
 
+    // sacar corchetes editoriales / contexto
+    $text = preg_replace('/\[[^\]]*\]/u', '', $text) ?? $text;
+
+    // normalizar separadores
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = str_replace('|', ';', $text);
+
+    return trim($text);
+}
+
+function cmp_goal_token_is_noise(string $token): bool {
+    $token = trim($token);
+    if ($token === '') {
+        return true;
+    }
+
+    // cosas que NO son goleadores
+    if (preg_match('/\b(suspended|suspendido|because the rain|rain|at\s+[[:alpha:]]+)/iu', $token)) {
+        return true;
+    }
+
+    // si quedó una línea completa de partido, descartarla
+    if (preg_match('/\b\d+\s*[-:]\s*\d+\b/u', $token)) {
+        return true;
+    }
+
+    // etiquetas vacías
+    if (preg_match('/^(local|visitante|ambiguo)\s*:?\s*$/iu', $token)) {
+        return true;
+    }
+
+    return false;
+}
+
+function cmp_goal_detect_side_prefix(string &$segment, string $homeCanonical = '', string $awayCanonical = ''): array {
+    $segment = trim($segment);
+
+    if (preg_match('/^LOCAL\s*:\s*(.+)$/iu', $segment, $m)) {
+        $segment = trim($m[1]);
+        return ['local', $homeCanonical];
+    }
+
+    if (preg_match('/^VISITANTE\s*:\s*(.+)$/iu', $segment, $m)) {
+        $segment = trim($m[1]);
+        return ['visitante', $awayCanonical];
+    }
+
+    if (preg_match('/^AMBIGUO\s*:\s*(.+)$/iu', $segment, $m)) {
+        $segment = trim($m[1]);
+        return ['desconocido', ''];
+    }
+
+    if ($homeCanonical !== '' && preg_match('/^' . preg_quote($homeCanonical, '/') . '\s*:\s*(.+)$/iu', $segment, $m)) {
+        $segment = trim($m[1]);
+        return ['local', $homeCanonical];
+    }
+
+    if ($awayCanonical !== '' && preg_match('/^' . preg_quote($awayCanonical, '/') . '\s*:\s*(.+)$/iu', $segment, $m)) {
+        $segment = trim($m[1]);
+        return ['visitante', $awayCanonical];
+    }
+
+    return ['desconocido', ''];
+}
+
+function cmp_extract_goal_scorers_from_text(string $text, string $homeCanonical = '', string $awayCanonical = ''): array {
+    $text = cmp_goal_text_strip_context($text);
+    if ($text === '') return [];
+
+    // aislar la parte posterior a "Goles:" si existe
     if (preg_match('/goles?\s*[:\-]\s*(.+)$/iu', $text, $m)) {
         $text = trim($m[1]);
     }
 
-    $segments = preg_split('/\s*[;|]\s*/u', $text) ?: [$text];
+    $segments = preg_split('/\s*[;\n]+\s*/u', $text) ?: [$text];
     $events = [];
     $order = 1;
 
     foreach ($segments as $segment) {
         $segment = trim($segment);
+        if ($segment === '') continue;
+
+        [$side, $team] = cmp_goal_detect_side_prefix($segment, $homeCanonical, $awayCanonical);
         if ($segment === '') {
             continue;
-        }
-
-        $side = 'desconocido';
-        $team = '';
-
-        if ($homeCanonical !== '' && preg_match('/^' . preg_quote($homeCanonical, '/') . '\s*:\s*/iu', $segment)) {
-            $side = 'local';
-            $team = $homeCanonical;
-            $segment = preg_replace('/^' . preg_quote($homeCanonical, '/') . '\s*:\s*/iu', '', $segment) ?? $segment;
-        } elseif ($awayCanonical !== '' && preg_match('/^' . preg_quote($awayCanonical, '/') . '\s*:\s*/iu', $segment)) {
-            $side = 'visitante';
-            $team = $awayCanonical;
-            $segment = preg_replace('/^' . preg_quote($awayCanonical, '/') . '\s*:\s*/iu', '', $segment) ?? $segment;
         }
 
         $parts = preg_split('/\s*,\s*/u', $segment) ?: [$segment];
 
         foreach ($parts as $part) {
             $part = trim($part);
-            if ($part === '') {
+            if ($part === '' || cmp_goal_token_is_noise($part)) {
                 continue;
             }
 
@@ -290,25 +350,29 @@ function cmp_extract_goal_scorers_from_text(string $text, string $homeCanonical 
             $minute = null;
             $goalType = 'normal';
 
+            // Machuca(2)
             if (preg_match('/^(.*?)\s*\((\d+)\)\s*$/u', $part, $m)) {
                 $player = trim($m[1]);
                 $qty = (int)$m[2];
 
-                for ($i = 0; $i < max(1, $qty); $i++) {
-                    $events[] = [
-                        'order' => $order++,
-                        'team_side' => $side,
-                        'team_name' => $team,
-                        'player_raw' => $player,
-                        'player_normalized' => cmp_normalize_person_name($player),
-                        'minute' => null,
-                        'goal_type' => $goalType,
-                        'raw_fragment' => $part,
-                    ];
+                if (!cmp_goal_token_is_noise($player) && $player !== '') {
+                    for ($i = 0; $i < max(1, $qty); $i++) {
+                        $events[] = [
+                            'order' => $order++,
+                            'team_side' => $side,
+                            'team_name' => $team,
+                            'player_raw' => $player,
+                            'player_normalized' => cmp_normalize_person_name($player),
+                            'minute' => null,
+                            'goal_type' => $goalType,
+                            'raw_fragment' => $part,
+                        ];
+                    }
                 }
                 continue;
             }
 
+            // nombre + minuto
             if (preg_match('/^(.*?)\s+(\d{1,3})\'?$/u', $part, $m)) {
                 $player = trim($m[1]);
                 $minute = (int)$m[2];
@@ -327,7 +391,7 @@ function cmp_extract_goal_scorers_from_text(string $text, string $homeCanonical 
             $player = preg_replace('/\ben contra\b/iu', '', $player) ?? $player;
             $player = trim($player);
 
-            if ($player === '') {
+            if ($player === '' || cmp_goal_token_is_noise($player)) {
                 continue;
             }
 
