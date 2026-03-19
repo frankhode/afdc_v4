@@ -200,6 +200,34 @@ function cmp_edit_get_node_row(int $nodeId): ?array {
     return $row;
 }
 
+function cmp_edit_get_match_row(int $matchId): ?array {
+    $db = cmp_db();
+    $sql = 'SELECT p.*, n.label AS nodo_label, n.tipo AS nodo_tipo
+            FROM cmp_importacion_partidos p
+            INNER JOIN cmp_importacion_nodos n ON n.id = p.nodo_id
+            WHERE p.id = ? LIMIT 1';
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+    $stmt->bind_param('i', $matchId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+    return $row;
+}
+
+function cmp_edit_normalize_goal_side(string $side): string {
+    $side = strtolower(trim($side));
+
+    return match ($side) {
+        'local', 'home' => 'local',
+        'visitante', 'away', 'visitor' => 'visitante',
+        default => 'desconocido',
+    };
+}
+
 function cmp_edit_get_goal_events_for_match(int $matchId): array {
     $db = cmp_db();
 
@@ -234,6 +262,124 @@ function cmp_edit_get_goal_events_for_match(int $matchId): array {
     }
 
     return $events;
+}
+
+function cmp_edit_decode_goal_events(array $matchRow): array {
+    $matchId = (int)($matchRow['id'] ?? 0);
+    if ($matchId > 0) {
+        $events = cmp_edit_get_goal_events_for_match($matchId);
+        if ($events !== []) {
+            return $events;
+        }
+    }
+
+    $decoded = null;
+
+    if (isset($matchRow['goal_events']) && is_string($matchRow['goal_events']) && trim($matchRow['goal_events']) !== '') {
+        $tmp = json_decode($matchRow['goal_events'], true);
+        if (is_array($tmp)) {
+            $decoded = $tmp;
+        }
+    } elseif (isset($matchRow['goal_events']) && is_array($matchRow['goal_events'])) {
+        $decoded = $matchRow['goal_events'];
+    }
+
+    if ($decoded === null && !empty($matchRow['meta_json']) && is_string($matchRow['meta_json'])) {
+        $meta = json_decode($matchRow['meta_json'], true);
+        if (is_array($meta) && isset($meta['goal_events']) && is_array($meta['goal_events'])) {
+            $decoded = $meta['goal_events'];
+        }
+    }
+
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $events = [];
+    foreach ($decoded as $idx => $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+
+        $player = trim((string)($event['player_raw'] ?? $event['player'] ?? ''));
+        $minuteRaw = $event['minute'] ?? null;
+        $minute = null;
+
+        if ($minuteRaw !== null && $minuteRaw !== '' && is_numeric((string)$minuteRaw)) {
+            $minute = (int)$minuteRaw;
+        }
+
+        $teamSide = cmp_edit_normalize_goal_side((string)($event['team_side'] ?? $event['side'] ?? 'desconocido'));
+
+        if ($player === '' && $minute === null && $teamSide === 'desconocido') {
+            continue;
+        }
+
+        $events[] = [
+            'order' => (int)($event['order'] ?? ($idx + 1)),
+            'player_raw' => $player,
+            'player_normalized' => $event['player_normalized'] ?? null,
+            'minute' => $minute,
+            'team_side' => $teamSide,
+            'team_name' => $event['team_name'] ?? null,
+            'goal_type' => $event['goal_type'] ?? 'normal',
+            'raw_fragment' => $event['raw_fragment'] ?? null,
+        ];
+    }
+
+    return $events;
+}
+
+function cmp_edit_normalize_goal_events(array $players, array $minutes, array $sides): array {
+    $max = max(count($players), count($minutes), count($sides));
+    $events = [];
+
+    for ($i = 0; $i < $max; $i++) {
+        $player = trim((string)($players[$i] ?? ''));
+        $minuteRaw = trim((string)($minutes[$i] ?? ''));
+        $teamSide = cmp_edit_normalize_goal_side((string)($sides[$i] ?? 'desconocido'));
+
+        $minute = null;
+        if ($minuteRaw !== '' && is_numeric($minuteRaw)) {
+            $minute = (int)$minuteRaw;
+        }
+
+        if ($player === '' && $minute === null && $teamSide === 'desconocido') {
+            continue;
+        }
+
+        $events[] = [
+            'player_raw' => $player,
+            'player_normalized' => null,
+            'minute' => $minute,
+            'team_side' => $teamSide,
+            'team_name' => null,
+            'goal_type' => 'normal',
+            'raw_fragment' => null,
+        ];
+    }
+
+    return $events;
+}
+
+function cmp_edit_goal_event_counts(array $events): array {
+    $counts = [
+        'local' => 0,
+        'visitante' => 0,
+        'desconocido' => 0,
+        'total' => 0,
+    ];
+
+    foreach ($events as $event) {
+        $side = cmp_edit_normalize_goal_side((string)($event['team_side'] ?? 'desconocido'));
+        if (!isset($counts[$side])) {
+            $side = 'desconocido';
+        }
+        $counts[$side]++;
+        $counts['total']++;
+    }
+
+    return $counts;
 }
 
 function cmp_edit_sync_match_goal_events_meta(int $matchId, array $events): void {
@@ -278,148 +424,84 @@ function cmp_edit_sync_match_goal_events_meta(int $matchId, array $events): void
     $stmt->close();
 }
 
-function cmp_edit_get_match_row(int $matchId): ?array {
-    $db = cmp_db();
-    $sql = 'SELECT p.*, n.label AS nodo_label, n.tipo AS nodo_tipo FROM cmp_importacion_partidos p INNER JOIN cmp_importacion_nodos n ON n.id = p.nodo_id WHERE p.id = ? LIMIT 1';
-    $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        throw new RuntimeException($db->error);
-    }
-    $stmt->bind_param('i', $matchId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res->fetch_assoc() ?: null;
-    $stmt->close();
-    return $row;
-}
-
-function cmp_edit_normalize_goal_side(string $side): string {
-    $side = strtolower(trim($side));
-
-    return match ($side) {
-        'local', 'home' => 'local',
-        'visitante', 'away', 'visitor' => 'visitante',
-        default => 'desconocido',
-    };
-}
-
-function cmp_edit_decode_goal_events(array $matchRow): array {
-    $raw = $matchRow['goal_events'] ?? null;
-    if (!is_string($raw) || trim($raw) === '') {
-        return [];
-    }
-
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) {
-        return [];
-    }
-
-    $events = [];
-    foreach ($decoded as $event) {
-        if (!is_array($event)) {
-            continue;
-        }
-
-        $player = trim((string)($event['player_raw'] ?? $event['player'] ?? ''));
-        $minuteRaw = $event['minute'] ?? null;
-        $minute = null;
-
-        if ($minuteRaw !== null && $minuteRaw !== '') {
-            if (is_numeric((string)$minuteRaw)) {
-                $minute = (int)$minuteRaw;
-            }
-        }
-
-        $teamSide = cmp_edit_normalize_goal_side((string)($event['team_side'] ?? $event['side'] ?? 'desconocido'));
-
-        if ($player === '' && $minute === null && $teamSide === 'desconocido') {
-            continue;
-        }
-
-        $events[] = [
-            'player_raw' => $player,
-            'minute' => $minute,
-            'team_side' => $teamSide,
-        ];
-    }
-
-    return $events;
-}
-
-function cmp_edit_normalize_goal_events(array $players, array $minutes, array $sides): array {
-    $max = max(count($players), count($minutes), count($sides));
-    $events = [];
-
-    for ($i = 0; $i < $max; $i++) {
-        $player = trim((string)($players[$i] ?? ''));
-        $minuteRaw = trim((string)($minutes[$i] ?? ''));
-        $teamSide = cmp_edit_normalize_goal_side((string)($sides[$i] ?? 'desconocido'));
-
-        $minute = null;
-        if ($minuteRaw !== '') {
-            if (is_numeric($minuteRaw)) {
-                $minute = (int)$minuteRaw;
-            }
-        }
-
-        if ($player === '' && $minute === null && $teamSide === 'desconocido') {
-            continue;
-        }
-
-        $events[] = [
-            'player_raw' => $player,
-            'minute' => $minute,
-            'team_side' => $teamSide,
-        ];
-    }
-
-    return $events;
-}
-
-function cmp_edit_goal_event_counts(array $events): array {
-    $counts = [
-        'local' => 0,
-        'visitante' => 0,
-        'desconocido' => 0,
-        'total' => 0,
-    ];
-
-    foreach ($events as $event) {
-        $side = cmp_edit_normalize_goal_side((string)($event['team_side'] ?? 'desconocido'));
-        if (!isset($counts[$side])) {
-            $side = 'desconocido';
-        }
-        $counts[$side]++;
-        $counts['total']++;
-    }
-
-    return $counts;
-}
-
 function cmp_edit_update_goal_events(int $matchId, array $events): void {
     $db = cmp_db();
 
-    $json = json_encode(
-        array_values($events),
-        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-    );
-
-    if ($json === false) {
-        throw new RuntimeException('No se pudieron serializar los goleadores.');
-    }
-
-    $sql = 'UPDATE cmp_importacion_partidos
-            SET goal_events = ?, is_manual_edit = 1, actualizado_en = NOW()
-            WHERE id = ?';
-
-    $stmt = $db->prepare($sql);
+    $stmt = $db->prepare('SELECT importacion_id FROM cmp_importacion_partidos WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException($db->error);
     }
 
-    $stmt->bind_param('si', $json, $matchId);
+    $stmt->bind_param('i', $matchId);
     $stmt->execute();
+    $res = $stmt->get_result();
+    $match = $res->fetch_assoc() ?: null;
     $stmt->close();
+
+    if (!$match) {
+        throw new RuntimeException('Partido inválido.');
+    }
+
+    $importId = (int)$match['importacion_id'];
+
+    $db->begin_transaction();
+    try {
+        $stmt = $db->prepare('DELETE FROM cmp_importacion_goles WHERE partido_id = ?');
+        if (!$stmt) {
+            throw new RuntimeException($db->error);
+        }
+        $stmt->bind_param('i', $matchId);
+        $stmt->execute();
+        $stmt->close();
+
+        $sql = 'INSERT INTO cmp_importacion_goles
+                (importacion_id, partido_id, orden, team_side, team_name, jugador_raw, jugador_normalizado, minuto, goal_type, raw_fragment, creado_en, actualizado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())';
+
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException($db->error);
+        }
+
+        $order = 1;
+        foreach ($events as $ev) {
+            $playerRaw = trim((string)($ev['player_raw'] ?? ''));
+            if ($playerRaw === '') {
+                continue;
+            }
+
+            $teamSide = cmp_edit_normalize_goal_side((string)($ev['team_side'] ?? 'desconocido'));
+            $teamName = $ev['team_name'] ?? null;
+            $playerNorm = $ev['player_normalized'] ?? null;
+            $minute = (isset($ev['minute']) && $ev['minute'] !== '' && $ev['minute'] !== null) ? (int)$ev['minute'] : null;
+            $goalType = (string)($ev['goal_type'] ?? 'normal');
+            $rawFragment = $ev['raw_fragment'] ?? null;
+            $orden = $order++;
+
+            $stmt->bind_param(
+                'iiissssiss',
+                $importId,
+                $matchId,
+                $orden,
+                $teamSide,
+                $teamName,
+                $playerRaw,
+                $playerNorm,
+                $minute,
+                $goalType,
+                $rawFragment
+            );
+            $stmt->execute();
+        }
+        $stmt->close();
+
+        cmp_edit_sync_match_goal_events_meta($matchId, $events);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        throw $e;
+    }
 }
 
 function cmp_edit_create_node(int $importId, int $parentNodeId, string $type, ?string $subtype, string $label, ?int $sortOrder = null): int {
