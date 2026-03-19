@@ -69,7 +69,7 @@ $id = (int)($_GET['id'] ?? 0);
 $currentNodeId = (int)($_GET['node_id'] ?? 0);
 $editMatchId = (int)($_GET['edit_match'] ?? 0);
 $moveMatchId = (int)($_GET['move_match'] ?? 0);
-
+$editGoalsMatchId = (int)($_GET['edit_goals'] ?? 0);
 $error = (string)($_GET['error'] ?? '');
 $message = (string)($_GET['msg'] ?? '');
 
@@ -83,6 +83,14 @@ $currentMatches = [];
 $destinationDates = [];
 $editingMatch = null;
 $movingMatch = null;
+$editingGoalsMatch = null;
+$editingGoalEvents = [];
+$editingGoalCounts = [
+    'local' => 0,
+    'visitante' => 0,
+    'desconocido' => 0,
+    'total' => 0,
+];
 $breadcrumbs = [];
 
 try {
@@ -124,6 +132,20 @@ try {
     if ($moveMatchId > 0) {
         $movingMatch = cmp_edit_get_match_row($moveMatchId);
     }
+    if ($editGoalsMatchId > 0) {
+      $editingGoalsMatch = cmp_edit_get_match_row($editGoalsMatchId);
+      if ($editingGoalsMatch) {
+          $editingGoalEvents = cmp_edit_decode_goal_events($editingGoalsMatch);
+          if ($editingGoalEvents === []) {
+              $editingGoalEvents[] = [
+                  'player_raw' => '',
+                  'minute' => null,
+                  'team_side' => 'desconocido',
+              ];
+          }
+          $editingGoalCounts = cmp_edit_goal_event_counts($editingGoalEvents);
+      }
+  }
 } catch (Throwable $e) {
     $error = $e->getMessage();
 }
@@ -134,7 +156,45 @@ cmp_render_header('Editar estructura de importación');
 ?>
 <link rel="stylesheet" href="../assets/css/campeonatos.css">
 <link rel="stylesheet" href="../assets/css/campeonatos_editor_columns.css">
-
+<style>
+.cmp-goals-editor {
+    display: grid;
+    gap: 12px;
+}
+.cmp-goals-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.cmp-goals-warning {
+    padding: 10px 12px;
+    border: 1px solid #d6a700;
+    background: #fff7d6;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+.cmp-goal-rows {
+    display: grid;
+    gap: 10px;
+}
+.cmp-goal-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.6fr) 110px 150px auto;
+    gap: 10px;
+    align-items: end;
+}
+.cmp-goal-row-template {
+    display: none;
+}
+.cmp-goal-row .cmp-btn {
+    white-space: nowrap;
+}
+@media (max-width: 980px) {
+    .cmp-goal-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 <section class="cmp-wrap cmp-wrap-editor">
   <nav class="cmp-breadcrumbs">
     <a href="campeonatos_importaciones.php">Importaciones</a>
@@ -293,11 +353,14 @@ cmp_render_header('Editar estructura de importación');
                             </td>
                             <td class="cmp-nowrap">
                               <a class="cmp-btn cmp-btn-sm" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>&edit_match=<?= (int)$match['id'] ?>#workspace">
-                                Editar
-                              </a>
-                              <a class="cmp-btn cmp-btn-sm" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>&move_match=<?= (int)$match['id'] ?>#workspace">
-                                Mover
-                              </a>
+                                    Editar
+                                </a>
+                                <a class="cmp-btn cmp-btn-sm" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>&edit_goals=<?= (int)$match['id'] ?>#workspace">
+                                    Goleadores
+                                </a>
+                                <a class="cmp-btn cmp-btn-sm" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>&move_match=<?= (int)$match['id'] ?>#workspace">
+                                    Mover
+                                </a>
 
                               <?php if (($match['estado'] ?? 'activo') !== 'ignorado'): ?>
                                 <form method="post" action="campeonatos_importacion_accion.php" class="cmp-inline-form">
@@ -456,7 +519,110 @@ cmp_render_header('Editar estructura de importación');
                     </form>
                   </section>
                 <?php endif; ?>
+                <?php if ($editingGoalsMatch): ?>
+                <section class="cmp-subsection">
+                    <h4>Editar goleadores del partido #<?= (int)$editingGoalsMatch['id'] ?></h4>
 
+                    <p class="cmp-meta">
+                        <?= cmp_h((string)$editingGoalsMatch['local_texto']) ?>
+                        <?= cmp_h((string)$editingGoalsMatch['goles_local']) ?>-<?= cmp_h((string)$editingGoalsMatch['goles_visitante']) ?>
+                        <?= cmp_h((string)$editingGoalsMatch['visitante_texto']) ?>
+                    </p>
+
+                    <?php
+                    $expectedLocal = $editingGoalsMatch['goles_local'] !== null ? (int)$editingGoalsMatch['goles_local'] : null;
+                    $expectedAway = $editingGoalsMatch['goles_visitante'] !== null ? (int)$editingGoalsMatch['goles_visitante'] : null;
+                    $hasScoreMismatch = (
+                        $expectedLocal !== null && $expectedAway !== null &&
+                        (
+                            $editingGoalCounts['local'] !== $expectedLocal ||
+                            $editingGoalCounts['visitante'] !== $expectedAway
+                        )
+                    );
+                    ?>
+
+                    <div class="cmp-goals-editor">
+                        <div class="cmp-goals-summary">
+                            <span class="cmp-chip cmp-chip-manual">local: <?= (int)$editingGoalCounts['local'] ?></span>
+                            <span class="cmp-chip cmp-chip-manual">visitante: <?= (int)$editingGoalCounts['visitante'] ?></span>
+                            <span class="cmp-chip cmp-chip-empty">desconocido: <?= (int)$editingGoalCounts['desconocido'] ?></span>
+                            <span class="cmp-chip">total: <?= (int)$editingGoalCounts['total'] ?></span>
+                        </div>
+
+                        <?php if ($hasScoreMismatch): ?>
+                            <div class="cmp-goals-warning">
+                                La cuenta de goleadores por lado no coincide con el marcador actual
+                                (esperado: <?= (int)$expectedLocal ?> local / <?= (int)$expectedAway ?> visitante).
+                                Se puede guardar igual.
+                            </div>
+                        <?php endif; ?>
+
+                        <form method="post" action="campeonatos_importacion_accion.php">
+                            <input type="hidden" name="action" value="update_goal_events">
+                            <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+                            <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+                            <input type="hidden" name="match_id" value="<?= (int)$editingGoalsMatch['id'] ?>">
+
+                            <div class="cmp-goal-rows" id="cmpGoalRows">
+                                <?php foreach ($editingGoalEvents as $idx => $goal): ?>
+                                    <div class="cmp-goal-row">
+                                        <label>
+                                            Jugador
+                                            <input type="text" name="goal_player_raw[]" value="<?= cmp_h((string)($goal['player_raw'] ?? '')) ?>">
+                                        </label>
+
+                                        <label>
+                                            Minuto
+                                            <input type="number" name="goal_minute[]" min="0" value="<?= cmp_h((string)($goal['minute'] ?? '')) ?>">
+                                        </label>
+
+                                        <label>
+                                            Lado
+                                            <select name="goal_team_side[]">
+                                                <?php $side = (string)($goal['team_side'] ?? 'desconocido'); ?>
+                                                <option value="local" <?= $side === 'local' ? 'selected' : '' ?>>local</option>
+                                                <option value="visitante" <?= $side === 'visitante' ? 'selected' : '' ?>>visitante</option>
+                                                <option value="desconocido" <?= $side === 'desconocido' ? 'selected' : '' ?>>desconocido</option>
+                                            </select>
+                                        </label>
+
+                                        <button type="button" class="cmp-btn cmp-btn-sm cmp-goal-remove">Quitar</button>
+                                    </div>
+                                <?php endforeach; ?>
+
+                                <div class="cmp-goal-row cmp-goal-row-template" id="cmpGoalRowTemplate">
+                                    <label>
+                                        Jugador
+                                        <input type="text" name="goal_player_raw[]" value="">
+                                    </label>
+
+                                    <label>
+                                        Minuto
+                                        <input type="number" name="goal_minute[]" min="0" value="">
+                                    </label>
+
+                                    <label>
+                                        Lado
+                                        <select name="goal_team_side[]">
+                                            <option value="local">local</option>
+                                            <option value="visitante">visitante</option>
+                                            <option value="desconocido" selected>desconocido</option>
+                                        </select>
+                                    </label>
+
+                                    <button type="button" class="cmp-btn cmp-btn-sm cmp-goal-remove">Quitar</button>
+                                </div>
+                            </div>
+
+                            <div class="cmp-actions">
+                                <button type="button" class="cmp-btn" id="cmpAddGoalRow">Agregar gol</button>
+                                <button type="submit" class="cmp-btn cmp-btn-primary">Guardar goleadores</button>
+                                <a class="cmp-btn" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>#workspace">Cancelar</a>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+                <?php endif; ?>
                 <?php if ($movingMatch): ?>
                   <section class="cmp-subsection">
                     <h4>Mover partido #<?= (int)$movingMatch['id'] ?></h4>
@@ -489,7 +655,7 @@ cmp_render_header('Editar estructura de importación');
                   </section>
                 <?php endif; ?>
 
-                <?php if (!$editingMatch && !$movingMatch): ?>
+                <?php if (!$editingMatch && !$movingMatch && !$editingGoalsMatch): ?>
                   <section class="cmp-subsection">
                     <h4>Sugerencia de uso</h4>
                     <p class="cmp-meta">
@@ -533,6 +699,7 @@ document.addEventListener('DOMContentLoaded', function () {
       url.searchParams.delete('node_id');
       url.searchParams.delete('edit_match');
       url.searchParams.delete('move_match');
+      url.searchParams.delete('edit_goals');
       url.hash = 'workspace';
       window.history.replaceState({}, '', url.toString());
 
@@ -668,11 +835,56 @@ document.addEventListener('DOMContentLoaded', function () {
       url.searchParams.delete('node_id');
       url.searchParams.delete('edit_match');
       url.searchParams.delete('move_match');
+      url.searchParams.delete('edit_goals');
       url.hash = 'workspace';
       window.location.href = url.toString();
     });
   }
 });
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const rows = document.getElementById('cmpGoalRows');
+    const template = document.getElementById('cmpGoalRowTemplate');
+    const addBtn = document.getElementById('cmpAddGoalRow');
 
+    if (!rows || !template || !addBtn) return;
+
+    function bindRemoveButtons(scope) {
+        scope.querySelectorAll('.cmp-goal-remove').forEach(function (btn) {
+            if (btn.dataset.bound === '1') return;
+            btn.dataset.bound = '1';
+
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.cmp-goal-row');
+                if (!row) return;
+                if (row.id === 'cmpGoalRowTemplate') return;
+
+                const liveRows = rows.querySelectorAll('.cmp-goal-row:not(.cmp-goal-row-template)');
+                if (liveRows.length <= 1) {
+                    row.querySelectorAll('input').forEach(function (input) {
+                        input.value = '';
+                    });
+                    row.querySelectorAll('select').forEach(function (select) {
+                        select.value = 'desconocido';
+                    });
+                    return;
+                }
+
+                row.remove();
+            });
+        });
+    }
+
+    addBtn.addEventListener('click', function () {
+        const clone = template.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.classList.remove('cmp-goal-row-template');
+        rows.appendChild(clone);
+        bindRemoveButtons(clone);
+    });
+
+    bindRemoveButtons(rows);
+});
+</script>
 <?php cmp_render_footer(); ?>
