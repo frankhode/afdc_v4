@@ -200,6 +200,84 @@ function cmp_edit_get_node_row(int $nodeId): ?array {
     return $row;
 }
 
+function cmp_edit_get_goal_events_for_match(int $matchId): array {
+    $db = cmp_db();
+
+    $sql = 'SELECT orden, team_side, team_name, jugador_raw, jugador_normalizado, minuto, goal_type, raw_fragment
+            FROM cmp_importacion_goles
+            WHERE partido_id = ?
+            ORDER BY orden ASC, id ASC';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $matchId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $events = [];
+    foreach ($rows as $row) {
+        $events[] = [
+            'order' => isset($row['orden']) ? (int)$row['orden'] : 0,
+            'player_raw' => trim((string)($row['jugador_raw'] ?? '')),
+            'player_normalized' => $row['jugador_normalizado'] ?? null,
+            'minute' => ($row['minuto'] !== null && $row['minuto'] !== '') ? (int)$row['minuto'] : null,
+            'team_side' => cmp_edit_normalize_goal_side((string)($row['team_side'] ?? 'desconocido')),
+            'team_name' => $row['team_name'] ?? null,
+            'goal_type' => $row['goal_type'] ?? 'normal',
+            'raw_fragment' => $row['raw_fragment'] ?? null,
+        ];
+    }
+
+    return $events;
+}
+
+function cmp_edit_sync_match_goal_events_meta(int $matchId, array $events): void {
+    $db = cmp_db();
+
+    $stmt = $db->prepare('SELECT meta_json FROM cmp_importacion_partidos WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $matchId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+
+    $meta = [];
+    if ($row && !empty($row['meta_json'])) {
+        $tmp = json_decode((string)$row['meta_json'], true);
+        if (is_array($tmp)) {
+            $meta = $tmp;
+        }
+    }
+
+    $meta['goal_events'] = array_values($events);
+    $meta['goal_events_count'] = count($events);
+
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($metaJson === false) {
+        throw new RuntimeException('No se pudo serializar meta_json del partido.');
+    }
+
+    $stmt = $db->prepare('UPDATE cmp_importacion_partidos
+                          SET meta_json = ?, is_manual_edit = 1, actualizado_en = NOW()
+                          WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('si', $metaJson, $matchId);
+    $stmt->execute();
+    $stmt->close();
+}
+
 function cmp_edit_get_match_row(int $matchId): ?array {
     $db = cmp_db();
     $sql = 'SELECT p.*, n.label AS nodo_label, n.tipo AS nodo_tipo FROM cmp_importacion_partidos p INNER JOIN cmp_importacion_nodos n ON n.id = p.nodo_id WHERE p.id = ? LIMIT 1';
