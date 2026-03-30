@@ -68,6 +68,8 @@ function cmp_edit_node_summary_type(array $node): string {
     return $subtype !== '' ? $type . ':' . $subtype : $type;
 }
 
+$linkFilter = (string)($_GET['link_filter'] ?? 'all');
+
 $id = (int)($_GET['id'] ?? 0);
 $currentNodeId = (int)($_GET['node_id'] ?? 0);
 
@@ -103,6 +105,9 @@ $editingGoalCounts = [
 $breadcrumbs = [];
 $allowedChildTypes = [];
 $canDeleteEmptyNode = false;
+
+$tituloRegOptions = [];
+$selectedTituloReg = '';
 
 try {
     if ($id <= 0) {
@@ -141,6 +146,14 @@ try {
             ((string)($currentNode['tipo'] ?? '') !== 'temporada')
         );
     }
+
+        $tituloRegOptions = cmp_edit_get_distinct_tituloreg_options();
+        $selectedTituloReg = trim((string)($_GET['tituloReg'] ?? ''));
+
+        if ($currentNode !== null) {
+            $currentMatches = cmp_edit_attach_match_link_summary($currentMatches);
+            $currentMatches = cmp_edit_filter_matches_by_link_status($currentMatches, $linkFilter);
+        }
 
     if ($editMatchId > 0) {
         $editingMatch = cmp_edit_get_match_row($editMatchId);
@@ -284,82 +297,222 @@ cmp_render_header('Editar estructura de importación');
                         </div>
                     </section>
                 <?php endif; ?>
+                <?php if ($hasSelectedNode): ?>
+<section class="cmp-subsection">
+  <h4>Cruce con partidos validados</h4>
 
+  <form method="post" action="campeonatos_importacion_accion.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+    <input type="hidden" name="action" value="generate_match_links">
+    <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+    <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+
+    <div>
+      <label for="tituloReg">tituloReg</label><br>
+      <select name="tituloReg" id="tituloReg" required>
+        <option value="">Seleccionar…</option>
+        <?php foreach ($tituloRegOptions as $opt): ?>
+          <option value="<?= cmp_h($opt) ?>" <?= $selectedTituloReg === $opt ? 'selected' : '' ?>>
+            <?= cmp_h($opt) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <label>
+      <input type="checkbox" name="include_descendants" value="1" checked>
+      Incluir descendientes
+    </label>
+
+    <label>
+      <input type="checkbox" name="allow_swapped" value="1" checked>
+      Permitir localía invertida
+    </label>
+
+    <div>
+      <button type="submit" class="cmp-btn">Generar propuestas</button>
+    </div>
+  </form>
+
+  <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+    <?php
+  $baseFilterUrl = 'campeonatos_importacion_editar.php?id=' . (int)$id . '&node_id=' . (int)$currentNodeId;
+  if ($selectedTituloReg !== '') {
+      $baseFilterUrl .= '&tituloReg=' . urlencode($selectedTituloReg);
+  }
+?>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=all#workspace">Todos</a>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=pending#workspace">Pendientes</a>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=unique#workspace">Propuesta única</a>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=ambiguous#workspace">Ambiguos</a>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=none#workspace">Sin evaluar</a>
+    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=validated#workspace">Validados</a>
+  </div>
+</section>
+<?php endif; ?>
                 <section class="cmp-subsection">
-                    <h4>Partidos de este nodo</h4>
-                    <div class="cmp-table-wrap">
-                        <table class="cmp-table">
-                            <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Contenedor</th>
-                                <th>Local</th>
-                                <th>GL</th>
-                                <th>GV</th>
-                                <th>Visitante</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php if ($currentMatches === []): ?>
-                                <tr>
-                                    <td colspan="8" class="cmp-empty">No hay partidos para este nodo.</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($currentMatches as $match): ?>
-                                    <tr>
-                                        <td><?= (int)$match['id'] ?></td>
-                                        <td><?= cmp_h((string)($match['nodo_label'] ?? '')) ?></td>
-                                        <td><?= cmp_h((string)$match['local_texto']) ?></td>
-                                        <td><?= cmp_h((string)($match['goles_local'] ?? '')) ?></td>
-                                        <td><?= cmp_h((string)($match['goles_visitante'] ?? '')) ?></td>
-                                        <td><?= cmp_h((string)$match['visitante_texto']) ?></td>
-                                        <td>
-                                            <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
-                                                <span class="cmp-chip cmp-chip-empty">ignorado</span>
-                                            <?php else: ?>
-                                                <span class="cmp-chip">activo</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="cmp-nowrap">
-                                            <select class="cmp-action-select"
-                                                    data-match-action
-                                                    data-base-url="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>">
-                                                <option value="">Acciones…</option>
-                                                <option value="edit_match=<?= (int)$match['id'] ?>">Editar partido</option>
-                                                <option value="edit_goals=<?= (int)$match['id'] ?>">Editar goleadores</option>
-                                                <option value="move_match=<?= (int)$match['id'] ?>">Mover partido</option>
-                                                <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
-                                                    <option value="restore_match:<?= (int)$match['id'] ?>">Restaurar</option>
-                                                <?php else: ?>
-                                                    <option value="ignore_match:<?= (int)$match['id'] ?>">Ignorar</option>
-                                                <?php endif; ?>
-                                            </select>
+  <h4>Partidos de este nodo</h4>
 
-                                            <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
-                                                <form method="post" action="campeonatos_importacion_accion.php" class="cmp-inline-form cmp-action-hidden-form" data-action-form="restore_match:<?= (int)$match['id'] ?>">
-                                                    <input type="hidden" name="action" value="restore_match">
-                                                    <input type="hidden" name="import_id" value="<?= (int)$id ?>">
-                                                    <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
-                                                    <input type="hidden" name="match_id" value="<?= (int)$match['id'] ?>">
-                                                </form>
-                                            <?php else: ?>
-                                                <form method="post" action="campeonatos_importacion_accion.php" class="cmp-inline-form cmp-action-hidden-form" data-action-form="ignore_match:<?= (int)$match['id'] ?>">
-                                                    <input type="hidden" name="action" value="ignore_match">
-                                                    <input type="hidden" name="import_id" value="<?= (int)$id ?>">
-                                                    <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
-                                                    <input type="hidden" name="match_id" value="<?= (int)$match['id'] ?>">
-                                                </form>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                            </tbody>
-                        </table>
+  <div class="cmp-table-wrap">
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Contenedor</th>
+          <th>Local</th>
+          <th>GL</th>
+          <th>GV</th>
+          <th>Visitante</th>
+          <th>Estado</th>
+          <th>Cruce</th>
+          <th>Mejor candidato</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if ($currentMatches === []): ?>
+        <tr>
+          <td colspan="10" class="cmp-empty">No hay partidos para este nodo.</td>
+        </tr>
+      <?php else: ?>
+        <?php foreach ($currentMatches as $match): ?>
+          <?php
+            $bestLink = $match['match_link_best'] ?? null;
+            $linkStatus = (string)($match['match_link_status'] ?? 'sin_evaluar');
+            $linkCount = (int)($match['match_link_count'] ?? 0);
+            $allLinks = $match['match_links'] ?? [];
+          ?>
+          <tr>
+            <td><?= (int)$match['id'] ?></td>
+            <td><?= cmp_h((string)($match['nodo_label'] ?? '')) ?></td>
+            <td><?= cmp_h((string)$match['local_texto']) ?></td>
+            <td><?= cmp_h((string)($match['goles_local'] ?? '')) ?></td>
+            <td><?= cmp_h((string)($match['goles_visitante'] ?? '')) ?></td>
+            <td><?= cmp_h((string)$match['visitante_texto']) ?></td>
+
+            <td>
+              <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
+                <span class="cmp-chip cmp-chip-empty">ignorado</span>
+              <?php else: ?>
+                <span class="cmp-chip">activo</span>
+              <?php endif; ?>
+            </td>
+
+            <td>
+              <?php if ($linkStatus === 'validado'): ?>
+                <span class="cmp-chip">validado</span>
+              <?php elseif ($linkStatus === 'propuesta_unica'): ?>
+                <span class="cmp-chip">propuesta única</span>
+              <?php elseif ($linkStatus === 'ambiguo'): ?>
+                <span class="cmp-chip cmp-chip-empty">ambiguo (<?= $linkCount ?>)</span>
+              <?php elseif ($linkStatus === 'rechazado'): ?>
+                <span class="cmp-chip cmp-chip-empty">rechazado</span>
+              <?php else: ?>
+                <span class="cmp-chip cmp-chip-empty">sin evaluar</span>
+              <?php endif; ?>
+            </td>
+
+            <td>
+              <?php if ($bestLink): ?>
+                <?php foreach ($allLinks as $idx => $link): ?>
+                  <div style="<?= $idx > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid #ddd;' : '' ?>">
+                    <div>
+                      <strong><?= cmp_h((string)$link['partido_barcode']) ?></strong>
+                      <?php if ((int)($link['id'] ?? 0) === (int)($bestLink['id'] ?? 0)): ?>
+                        <span class="cmp-chip" style="margin-left:6px;">mejor</span>
+                      <?php endif; ?>
                     </div>
-                </section>
+
+                    <div>
+                      <?= cmp_h((string)$link['equipo1_validado']) ?>
+                      vs
+                      <?= cmp_h((string)$link['equipo2_validado']) ?>
+                    </div>
+
+                    <div>score: <?= (int)$link['score'] ?></div>
+
+                    <?php if (!empty($link['fecha_validada'])): ?>
+                      <div>fecha: <?= cmp_h((string)$link['fecha_validada']) ?></div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($link['observacion'])): ?>
+                      <div><?= cmp_h((string)$link['observacion']) ?></div>
+                    <?php endif; ?>
+
+                    <div style="margin-top:4px;">
+                      <a href="../ver_digital.php?barcode=<?= urlencode((string)$link['partido_barcode']) ?>&i=0"
+                         target="_blank" rel="noopener">
+                        Ver sobre
+                      </a>
+                    </div>
+
+                    <div style="margin-top:6px;">
+                      <form method="post" action="campeonatos_importacion_accion.php" class="cmp-inline-form" style="display:inline-block;">
+                        <input type="hidden" name="action" value="validate_match_link">
+                        <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+                        <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+                        <input type="hidden" name="link_id" value="<?= (int)$link['id'] ?>">
+                        <input type="hidden" name="tituloReg" value="<?= cmp_h($selectedTituloReg) ?>">
+                        <button type="submit" class="cmp-btn cmp-btn-sm">Validar este</button>
+                      </form>
+
+                      <form method="post" action="campeonatos_importacion_accion.php" class="cmp-inline-form" style="display:inline-block; margin-left:4px;">
+                        <input type="hidden" name="action" value="reject_match_link">
+                        <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+                        <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+                        <input type="hidden" name="link_id" value="<?= (int)$link['id'] ?>">
+                        <input type="hidden" name="tituloReg" value="<?= cmp_h($selectedTituloReg) ?>">
+                        <button type="submit" class="cmp-btn cmp-btn-sm">Rechazar</button>
+                      </form>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span class="cmp-empty">—</span>
+              <?php endif; ?>
+            </td>
+
+            <td class="cmp-nowrap">
+              <select class="cmp-action-select"
+                      data-match-action
+                      data-base-url="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$currentNodeId ?>">
+                <option value="">Acciones…</option>
+                <option value="edit_match=<?= (int)$match['id'] ?>">Editar partido</option>
+                <option value="edit_goals=<?= (int)$match['id'] ?>">Editar goleadores</option>
+                <option value="move_match=<?= (int)$match['id'] ?>">Mover partido</option>
+                <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
+                  <option value="restore_match:<?= (int)$match['id'] ?>">Restaurar</option>
+                <?php else: ?>
+                  <option value="ignore_match:<?= (int)$match['id'] ?>">Ignorar</option>
+                <?php endif; ?>
+              </select>
+
+              <?php if (($match['estado'] ?? 'activo') === 'ignorado'): ?>
+                <form method="post" action="campeonatos_importacion_accion.php"
+                      class="cmp-inline-form cmp-action-hidden-form"
+                      data-action-form="restore_match:<?= (int)$match['id'] ?>">
+                  <input type="hidden" name="action" value="restore_match">
+                  <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+                  <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+                  <input type="hidden" name="match_id" value="<?= (int)$match['id'] ?>">
+                </form>
+              <?php else: ?>
+                <form method="post" action="campeonatos_importacion_accion.php"
+                      class="cmp-inline-form cmp-action-hidden-form"
+                      data-action-form="ignore_match:<?= (int)$match['id'] ?>">
+                  <input type="hidden" name="action" value="ignore_match">
+                  <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+                  <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+                  <input type="hidden" name="match_id" value="<?= (int)$match['id'] ?>">
+                </form>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
 
                 <section class="cmp-subsection">
                     <h4>Sugerencia de uso</h4>

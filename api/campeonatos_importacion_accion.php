@@ -1,10 +1,5 @@
 <?php
-
 declare(strict_types=1);
-
-require_once __DIR__ . '/../inc/campeonatos_helpers.php';
-
-cmp_require_bootstrap_if_available();
 
 require_once __DIR__ . '/../inc/campeonatos_import_edit_repo.php';
 
@@ -14,21 +9,17 @@ function cmp_redirect_back(
     ?string $message = null,
     ?string $error = null,
     array $extraParams = []
-): never {
+): void {
     $params = ['id' => $importId];
-
     if ($nodeId !== null && $nodeId > 0) {
         $params['node_id'] = $nodeId;
     }
-
     if ($message !== null && $message !== '') {
         $params['msg'] = $message;
     }
-
     if ($error !== null && $error !== '') {
         $params['error'] = $error;
     }
-
     foreach ($extraParams as $key => $value) {
         if ($value === null || $value === '') {
             continue;
@@ -71,7 +62,6 @@ try {
                 $label,
                 $order !== '' ? (int)$order : null
             );
-
             cmp_redirect_back($importId, $newId, 'Nodo creado.');
             break;
 
@@ -87,7 +77,6 @@ try {
                 $subtype !== '' ? $subtype : null,
                 $order !== '' ? (int)$order : null
             );
-
             cmp_redirect_back($importId, $nodeId, 'Nodo actualizado.');
             break;
 
@@ -96,12 +85,7 @@ try {
             $parentId = (int)($_POST['parent_id'] ?? 0);
 
             cmp_edit_delete_empty_node($nodeId);
-
-            cmp_redirect_back(
-                $importId,
-                $parentId > 0 ? $parentId : null,
-                'Nodo vacío eliminado.'
-            );
+            cmp_redirect_back($importId, $parentId > 0 ? $parentId : null, 'Nodo vacío eliminado.');
             break;
 
         case 'update_match':
@@ -120,12 +104,7 @@ try {
                 $away,
                 $obs !== '' ? $obs : null
             );
-
-            cmp_redirect_back(
-                $importId,
-                $nodeId > 0 ? $nodeId : null,
-                'Partido actualizado.'
-            );
+            cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Partido actualizado.');
             break;
 
         case 'update_goal_events':
@@ -138,14 +117,11 @@ try {
             cmp_edit_update_goal_events($matchId, $events);
 
             $message = 'Goleadores actualizados.';
-
             $matchRow = cmp_edit_get_match_row($matchId);
             if ($matchRow) {
                 $counts = cmp_edit_goal_event_counts($events);
-
                 $gl = $matchRow['goles_local'] !== null ? (int)$matchRow['goles_local'] : null;
                 $gv = $matchRow['goles_visitante'] !== null ? (int)$matchRow['goles_visitante'] : null;
-
                 if ($gl !== null && $gv !== null) {
                     if ($counts['local'] !== $gl || $counts['visitante'] !== $gv) {
                         $message .= ' Ojo: la cuenta por lado no coincide con el marcador.';
@@ -167,7 +143,6 @@ try {
             $targetNodeId = (int)($_POST['target_node_id'] ?? 0);
 
             cmp_edit_move_match($matchId, $targetNodeId);
-
             cmp_redirect_back($importId, $targetNodeId, 'Partido movido.');
             break;
 
@@ -175,24 +150,76 @@ try {
             $matchId = (int)($_POST['match_id'] ?? 0);
 
             cmp_edit_set_match_state($matchId, 'ignorado');
-
-            cmp_redirect_back(
-                $importId,
-                $nodeId > 0 ? $nodeId : null,
-                'Partido ignorado.'
-            );
+            cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Partido ignorado.');
             break;
 
         case 'restore_match':
             $matchId = (int)($_POST['match_id'] ?? 0);
 
             cmp_edit_set_match_state($matchId, 'activo');
+            cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Partido restaurado.');
+            break;
 
-            cmp_redirect_back(
+        case 'generate_match_links':
+            $tituloReg = trim((string)($_POST['tituloReg'] ?? ''));
+            $includeDescendants = (int)($_POST['include_descendants'] ?? 1) === 1;
+            $allowSwapped = (int)($_POST['allow_swapped'] ?? 1) === 1;
+
+            if ($nodeId <= 0) {
+                throw new InvalidArgumentException('Nodo inválido para generar propuestas.');
+            }
+            if ($tituloReg === '') {
+                throw new InvalidArgumentException('Seleccioná un tituloReg.');
+            }
+
+            $stats = cmp_edit_generate_match_links(
                 $importId,
-                $nodeId > 0 ? $nodeId : null,
-                'Partido restaurado.'
+                $nodeId,
+                $tituloReg,
+                $includeDescendants,
+                $allowSwapped
             );
+
+            $msg = sprintf(
+                'Propuestas generadas. Evaluados: %d · únicos: %d · ambiguos: %d · sin candidato: %d',
+                (int)$stats['evaluados'],
+                (int)$stats['unicos'],
+                (int)$stats['ambiguos'],
+                (int)$stats['sin_candidato']
+            );
+
+            cmp_redirect_back($importId, $nodeId, $msg, null, [
+                'link_filter' => 'pending',
+                'tituloReg' => $tituloReg,
+            ]);
+            break;
+
+        case 'validate_match_link':
+            $linkId = (int)($_POST['link_id'] ?? 0);
+            $tituloReg = trim((string)($_POST['tituloReg'] ?? ''));
+            if ($linkId <= 0) {
+                throw new InvalidArgumentException('Vínculo inválido.');
+            }
+
+            cmp_edit_set_match_link_state($linkId, 'validado');
+            cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Vínculo validado.', null, [
+                'tituloReg' => $tituloReg,
+                'link_filter' => 'pending',
+            ]);
+            break;
+
+        case 'reject_match_link':
+            $linkId = (int)($_POST['link_id'] ?? 0);
+            $tituloReg = trim((string)($_POST['tituloReg'] ?? ''));
+            if ($linkId <= 0) {
+                throw new InvalidArgumentException('Vínculo inválido.');
+            }
+
+            cmp_edit_set_match_link_state($linkId, 'rechazado');
+            cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Vínculo rechazado.', null, [
+                'tituloReg' => $tituloReg,
+                'link_filter' => 'pending',
+            ]);
             break;
 
         default:
@@ -200,11 +227,9 @@ try {
     }
 } catch (Throwable $e) {
     $extra = [];
-
     if ($action === 'update_goal_events') {
         $extra['edit_goals'] = (int)($_POST['match_id'] ?? 0);
     }
-
     cmp_redirect_back(
         $importId,
         $nodeId > 0 ? $nodeId : null,

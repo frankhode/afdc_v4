@@ -99,7 +99,7 @@ $__isAdmin = $__logged && (($__u['role'] ?? '') === 'admin');
               <a class="nav__drop is-disabled" href="#" aria-disabled="true">Colecciones curadas</a>
               <a class="nav__drop" href="api/campeonatos_importaciones.php">Importar campeonatos</a>
               <?php if ($__isAdmin): ?>
-              <a href="<?= h(BASE_URL . '/contactos.php') ?>">Hojas de contacto</a>
+              <a class="nav__drop" href="<?= h(BASE_URL . '/contactos.php') ?>">Hojas de contacto</a>
             <?php endif; ?>              
             <?php endif; ?>
 
