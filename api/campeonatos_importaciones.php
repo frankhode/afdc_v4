@@ -32,8 +32,8 @@ try {
 } catch (Throwable $e) {
     $error = $e->getMessage();
 }
-
-cmp_render_header('Importaciones de campeonatos');
+$mainClass = 'container-fluid';
+cmp_render_header('Importaciones de campeonatos', 'container-fluid');
 ?>
 <link rel="stylesheet" href="../assets/css/campeonatos.css">
 

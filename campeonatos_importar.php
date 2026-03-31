@@ -53,7 +53,7 @@ $defaultText = (string)($_POST['source_value'] ?? '');
 $ok = isset($_GET['ok']) ? (int)$_GET['ok'] : 0;
 $importIdMsg = isset($_GET['id']) ? trim((string)$_GET['id']) : '';
 
-cmp_render_header('Importar campeonato');
+cmp_render_header('Importar campeonato', 'container-fluid');
 ?>
 <link rel="stylesheet" href="assets/css/campeonatos.css">
 

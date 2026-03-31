@@ -1301,3 +1301,263 @@ function cmp_edit_filter_matches_by_link_status(array $matches, string $filter):
 
     return $out;
 }
+
+function cmp_edit_get_distinct_team_options(): array {
+    $db = cmp_edit_db();
+
+    $sql = "
+        SELECT nombre
+        FROM (
+            SELECT TRIM(COALESCE(equipo1, '')) AS nombre FROM partidos
+            UNION
+            SELECT TRIM(COALESCE(equipo2, '')) AS nombre FROM partidos
+        ) t
+        WHERE nombre <> ''
+        ORDER BY nombre ASC
+    ";
+
+    $res = $db->query($sql);
+    if (!$res) {
+        throw new RuntimeException('Error cargando equipos normalizados: ' . $db->error);
+    }
+
+    $rows = [];
+    while ($row = $res->fetch_assoc()) {
+        $value = trim((string)($row['nombre'] ?? ''));
+        if ($value !== '') {
+            $rows[] = $value;
+        }
+    }
+    $res->free();
+
+    return $rows;
+}
+
+function cmp_edit_search_registros_titulo245(string $term, int $limit = 20): array {
+    $db = cmp_edit_db();
+    $term = trim($term);
+    $limit = max(1, min(50, $limit));
+
+    if ($term === '') {
+        return [];
+    }
+
+    $like = '%' . $term . '%';
+
+    $sql = "
+        SELECT sys, titulo245
+        FROM registros
+        WHERE TRIM(COALESCE(sys, '')) <> ''
+          AND TRIM(COALESCE(titulo245, '')) <> ''
+          AND titulo245 LIKE ?
+        ORDER BY titulo245 ASC
+        LIMIT ?
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Error preparando búsqueda de registros: ' . $db->error);
+    }
+
+    $stmt->bind_param('si', $like, $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $rows = [];
+    while ($row = $res->fetch_assoc()) {
+        $sys = trim((string)($row['sys'] ?? ''));
+        $titulo245 = trim((string)($row['titulo245'] ?? ''));
+        if ($sys !== '' && $titulo245 !== '') {
+            $rows[] = [
+                'sys' => $sys,
+                'titulo245' => $titulo245,
+            ];
+        }
+    }
+
+    $stmt->close();
+    return $rows;
+}
+
+function cmp_edit_get_registro_by_sys(string $sys): ?array {
+    $db = cmp_edit_db();
+    $sys = trim($sys);
+
+    if ($sys === '') {
+        return null;
+    }
+
+    $sql = "
+        SELECT sys, titulo245
+        FROM registros
+        WHERE sys = ?
+        LIMIT 1
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Error preparando consulta de registro: ' . $db->error);
+    }
+
+    $stmt->bind_param('s', $sys);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    return [
+        'sys' => trim((string)($row['sys'] ?? '')),
+        'titulo245' => trim((string)($row['titulo245'] ?? '')),
+    ];
+}
+
+function cmp_edit_get_otros_sobres_by_sys(
+    string $sys,
+    string $tituloReg,
+    string $filter = 'pending'
+): array {
+    $db = cmp_edit_db();
+    $sys = trim($sys);
+    $tituloReg = trim($tituloReg);
+    $filter = trim($filter);
+
+    if ($sys === '' || $tituloReg === '') {
+        return [];
+    }
+
+    $sql = "
+        SELECT
+            t.sys,
+            t.barcode,
+            t.titulo,
+            t.fecha,
+            p.barcode AS loaded_barcode,
+            p.equipo1 AS loaded_equipo1,
+            p.equipo2 AS loaded_equipo2
+        FROM titulos t
+        LEFT JOIN partidos p
+            ON p.barcode = t.barcode
+           AND TRIM(p.tituloReg) = TRIM(?)
+        WHERE t.sys = ?
+          AND TRIM(COALESCE(t.barcode, '')) <> ''
+        ORDER BY t.fecha ASC, t.titulo ASC, t.barcode ASC
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Error cargando sobres del registro: ' . $db->error);
+    }
+
+    $stmt->bind_param('ss', $tituloReg, $sys);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $rows = [];
+    while ($row = $res->fetch_assoc()) {
+        $isLoaded = trim((string)($row['loaded_barcode'] ?? '')) !== '';
+        $item = [
+            'sys' => trim((string)($row['sys'] ?? '')),
+            'barcode' => trim((string)($row['barcode'] ?? '')),
+            'titulo' => trim((string)($row['titulo'] ?? '')),
+            'fecha' => trim((string)($row['fecha'] ?? '')),
+            'is_loaded' => $isLoaded,
+            'equipo1' => trim((string)($row['loaded_equipo1'] ?? '')),
+            'equipo2' => trim((string)($row['loaded_equipo2'] ?? '')),
+        ];
+
+        if ($filter === 'loaded' && !$isLoaded) {
+            continue;
+        }
+        if ($filter === 'pending' && $isLoaded) {
+            continue;
+        }
+
+        $rows[] = $item;
+    }
+
+    $stmt->close();
+    return $rows;
+}
+
+function cmp_edit_insert_manual_partidos_for_tituloreg(
+    string $tituloReg,
+    array $rows
+): array {
+    $db = cmp_edit_db();
+    $tituloReg = trim($tituloReg);
+
+    if ($tituloReg === '') {
+        throw new InvalidArgumentException('tituloReg vacío para carga manual.');
+    }
+
+    $sqlExists = "
+        SELECT 1
+        FROM partidos
+        WHERE tituloReg = ? AND barcode = ?
+        LIMIT 1
+    ";
+    $stmtExists = $db->prepare($sqlExists);
+    if (!$stmtExists) {
+        throw new RuntimeException('Error preparando control de duplicados: ' . $db->error);
+    }
+
+    $sqlInsert = "
+        INSERT INTO partidos (barcode, tituloSobre, tituloReg, fecha, equipo1, equipo2, cancha)
+        VALUES (?, ?, ?, ?, ?, ?, '')
+    ";
+    $stmtInsert = $db->prepare($sqlInsert);
+    if (!$stmtInsert) {
+        $stmtExists->close();
+        throw new RuntimeException('Error preparando inserción manual en partidos: ' . $db->error);
+    }
+
+    $stats = [
+        'insertados' => 0,
+        'omitidos_incompletos' => 0,
+        'omitidos_existentes' => 0,
+    ];
+
+    foreach ($rows as $row) {
+        $barcode = trim((string)($row['barcode'] ?? ''));
+        $tituloSobre = trim((string)($row['tituloSobre'] ?? ''));
+        $fecha = trim((string)($row['fecha'] ?? ''));
+        $equipo1 = trim((string)($row['equipo1'] ?? ''));
+        $equipo2 = trim((string)($row['equipo2'] ?? ''));
+
+        if ($barcode === '' || $tituloSobre === '' || $equipo1 === '' || $equipo2 === '') {
+            $stats['omitidos_incompletos']++;
+            continue;
+        }
+
+        $stmtExists->bind_param('ss', $tituloReg, $barcode);
+        $stmtExists->execute();
+        $resExists = $stmtExists->get_result();
+        $exists = (bool)$resExists->fetch_row();
+
+        if ($exists) {
+            $stats['omitidos_existentes']++;
+            continue;
+        }
+
+        $stmtInsert->bind_param(
+            'ssssss',
+            $barcode,
+            $tituloSobre,
+            $tituloReg,
+            $fecha,
+            $equipo1,
+            $equipo2
+        );
+        $stmtInsert->execute();
+        $stats['insertados']++;
+    }
+
+    $stmtExists->close();
+    $stmtInsert->close();
+
+    return $stats;
+}

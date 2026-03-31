@@ -109,6 +109,14 @@ $canDeleteEmptyNode = false;
 $tituloRegOptions = [];
 $selectedTituloReg = '';
 
+$otrosSys = '';
+$otrosTitulo = '';
+$otrosFilter = 'pending';
+$otrosRows = [];
+$teamOptions = [];
+$otrosRegistro = null;
+$isOtrosMode = false;
+
 try {
     if ($id <= 0) {
         throw new InvalidArgumentException('ID inválido.');
@@ -150,6 +158,31 @@ try {
         $tituloRegOptions = cmp_edit_get_distinct_tituloreg_options();
         $selectedTituloReg = trim((string)($_GET['tituloReg'] ?? ''));
 
+        $otrosSys = trim((string)($_GET['otros_sys'] ?? ''));
+        $otrosTitulo = trim((string)($_GET['otros_titulo'] ?? ''));
+        $otrosFilter = trim((string)($_GET['otros_filter'] ?? 'pending'));
+        if (!in_array($otrosFilter, ['pending', 'loaded', 'all'], true)) {
+            $otrosFilter = 'pending';
+        }
+
+        $isOtrosMode = ($selectedTituloReg === '__otros__');
+
+        if ($isOtrosMode) {
+            $teamOptions = cmp_edit_get_distinct_team_options();
+
+            if ($otrosSys !== '') {
+                $otrosRegistro = cmp_edit_get_registro_by_sys($otrosSys);
+                if ($otrosRegistro) {
+                    if ($otrosTitulo === '') {
+                        $otrosTitulo = (string)$otrosRegistro['titulo245'];
+                    }
+                    if ($otrosTitulo !== '') {
+                        $otrosRows = cmp_edit_get_otros_sobres_by_sys($otrosSys, $otrosTitulo, $otrosFilter);
+                    }
+                }
+            }
+        }
+
         if ($currentNode !== null) {
             $currentMatches = cmp_edit_attach_match_link_summary($currentMatches);
             $currentMatches = cmp_edit_filter_matches_by_link_status($currentMatches, $linkFilter);
@@ -182,9 +215,9 @@ try {
 }
 
 $hasSelectedNode = $currentNode !== null;
-$mainClass = 'container-fluid';
 
-cmp_render_header('Editar estructura de importación');
+$mainClass = 'container-fluid';
+cmp_render_header('Editar estructura de importación', 'container-fluid');
 ?>
 <link rel="stylesheet" href="../assets/css/campeonatos.css">
 <link rel="stylesheet" href="../assets/css/campeonatos_editor_columns.css">
@@ -196,8 +229,9 @@ cmp_render_header('Editar estructura de importación');
         <div class="cmp-meta">Mini-hito 2 · edición clásica de staging</div>
     </div>
     <div class="cmp-page-actions">
-        <a class="cmp-btn" href="campeonatos_importacion.php?id=<?= (int)$id ?>">Volver a importación</a>
-        <a class="cmp-btn cmp-btn-primary" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?><?= $currentNodeId > 0 ? '&node_id=' . (int)$currentNodeId : '' ?>#workspace">Refrescar</a>
+        <a class="btn btn-outline-secondary" href="campeonatos_importacion.php?id=<?= $id ?>">Volver a importación</a>
+        <a class="btn btn-outline-secondary" href="campeonatos_relacion_sobres.php?id=<?= $id ?>">Relacionar sobres</a>
+        <a class="btn btn-primary" href="campeonatos_importacion_editar.php?id=<?= $id ?>">Refrescar</a>
     </div>
 </div>
 
@@ -299,11 +333,26 @@ cmp_render_header('Editar estructura de importación');
                 <?php endif; ?>
                 <?php if ($hasSelectedNode): ?>
 <section class="cmp-subsection">
-  <h4>Cruce con partidos validados</h4>
+  <h4><?= $isOtrosMode ? 'Carga manual de sobres a partidos' : 'Cruce con partidos validados' ?></h4>
 
-  <form method="post" action="campeonatos_importacion_accion.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
-    <input type="hidden" name="action" value="generate_match_links">
-    <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+  <?php
+  $baseWorkspaceUrl = 'campeonatos_importacion_editar.php?id=' . (int)$id . '&node_id=' . (int)$currentNodeId;
+  if ($selectedTituloReg !== '') {
+      $baseWorkspaceUrl .= '&tituloReg=' . urlencode($selectedTituloReg);
+  }
+  if ($isOtrosMode && $otrosSys !== '') {
+      $baseWorkspaceUrl .= '&otros_sys=' . urlencode($otrosSys);
+  }
+  if ($isOtrosMode && $otrosTitulo !== '') {
+      $baseWorkspaceUrl .= '&otros_titulo=' . urlencode($otrosTitulo);
+  }
+  if ($isOtrosMode && $otrosFilter !== '') {
+      $baseWorkspaceUrl .= '&otros_filter=' . urlencode($otrosFilter);
+  }
+  ?>
+
+  <form method="get" action="campeonatos_importacion_editar.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+    <input type="hidden" name="id" value="<?= (int)$id ?>">
     <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
 
     <div>
@@ -315,38 +364,177 @@ cmp_render_header('Editar estructura de importación');
             <?= cmp_h($opt) ?>
           </option>
         <?php endforeach; ?>
+        <option value="__otros__" <?= $isOtrosMode ? 'selected' : '' ?>>Otros…</option>
       </select>
     </div>
 
-    <label>
-      <input type="checkbox" name="include_descendants" value="1" checked>
-      Incluir descendientes
-    </label>
+    <?php if (!$isOtrosMode): ?>
+      <label>
+        <input type="checkbox" name="include_descendants" value="1" checked disabled>
+        Incluir descendientes
+      </label>
 
-    <label>
-      <input type="checkbox" name="allow_swapped" value="1" checked>
-      Permitir localía invertida
-    </label>
+      <label>
+        <input type="checkbox" name="allow_swapped" value="1" checked disabled>
+        Permitir localía invertida
+      </label>
 
-    <div>
-      <button type="submit" class="cmp-btn">Generar propuestas</button>
-    </div>
+      <div>
+        <button type="button" class="cmp-btn" id="cmpGoToNormalLinking">Ir al cruce</button>
+      </div>
+    <?php else: ?>
+      <div>
+        <button type="button" class="cmp-btn" id="cmpOpenOtrosModal">Buscar campeonato…</button>
+      </div>
+
+      <?php if ($otrosTitulo !== ''): ?>
+        <div>
+          <strong>Seleccionado:</strong><br>
+          <span><?= cmp_h($otrosTitulo) ?></span><br>
+          <small>sys <?= cmp_h($otrosSys) ?></small>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
   </form>
 
-  <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-    <?php
-  $baseFilterUrl = 'campeonatos_importacion_editar.php?id=' . (int)$id . '&node_id=' . (int)$currentNodeId;
-  if ($selectedTituloReg !== '') {
-      $baseFilterUrl .= '&tituloReg=' . urlencode($selectedTituloReg);
-  }
-?>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=all#workspace">Todos</a>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=pending#workspace">Pendientes</a>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=unique#workspace">Propuesta única</a>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=ambiguous#workspace">Ambiguos</a>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=none#workspace">Sin evaluar</a>
-    <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=validated#workspace">Validados</a>
-  </div>
+  <?php if (!$isOtrosMode): ?>
+    <form method="post" action="campeonatos_importacion_accion.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end; margin-top:12px;">
+      <input type="hidden" name="action" value="generate_match_links">
+      <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+      <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+      <input type="hidden" name="tituloReg" value="<?= cmp_h($selectedTituloReg) ?>">
+
+      <label>
+        <input type="checkbox" name="include_descendants" value="1" checked>
+        Incluir descendientes
+      </label>
+
+      <label>
+        <input type="checkbox" name="allow_swapped" value="1" checked>
+        Permitir localía invertida
+      </label>
+
+      <div>
+        <button type="submit" class="cmp-btn" <?= $selectedTituloReg === '' ? 'disabled' : '' ?>>Generar propuestas</button>
+      </div>
+    </form>
+
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <?php
+      $baseFilterUrl = 'campeonatos_importacion_editar.php?id=' . (int)$id . '&node_id=' . (int)$currentNodeId;
+      if ($selectedTituloReg !== '') {
+          $baseFilterUrl .= '&tituloReg=' . urlencode($selectedTituloReg);
+      }
+      ?>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=all#workspace">Todos</a>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=pending#workspace">Pendientes</a>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=unique#workspace">Propuesta única</a>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=ambiguous#workspace">Ambiguos</a>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=none#workspace">Sin evaluar</a>
+      <a class="cmp-btn cmp-btn-sm" href="<?= $baseFilterUrl ?>&link_filter=validated#workspace">Validados</a>
+    </div>
+  <?php else: ?>
+    <?php if ($otrosTitulo !== ''): ?>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <?php
+        $baseOtrosFilterUrl = 'campeonatos_importacion_editar.php?id=' . (int)$id
+            . '&node_id=' . (int)$currentNodeId
+            . '&tituloReg=__otros__'
+            . '&otros_sys=' . urlencode($otrosSys)
+            . '&otros_titulo=' . urlencode($otrosTitulo);
+        ?>
+        <a class="cmp-btn cmp-btn-sm" href="<?= $baseOtrosFilterUrl ?>&otros_filter=pending#workspace">Pendientes</a>
+        <a class="cmp-btn cmp-btn-sm" href="<?= $baseOtrosFilterUrl ?>&otros_filter=loaded#workspace">Cargados</a>
+        <a class="cmp-btn cmp-btn-sm" href="<?= $baseOtrosFilterUrl ?>&otros_filter=all#workspace">Todos</a>
+      </div>
+
+      <form method="post" action="campeonatos_importacion_accion.php" style="margin-top:12px;">
+        <input type="hidden" name="action" value="save_other_manual_matches">
+        <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+        <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+        <input type="hidden" name="tituloReg_manual" value="<?= cmp_h($otrosTitulo) ?>">
+        <input type="hidden" name="otros_sys" value="<?= cmp_h($otrosSys) ?>">
+        <input type="hidden" name="otros_titulo" value="<?= cmp_h($otrosTitulo) ?>">
+        <input type="hidden" name="otros_filter" value="<?= cmp_h($otrosFilter) ?>">
+
+        <div class="cmp-table-wrap" style="margin-top:12px;">
+          <table class="cmp-table">
+            <thead>
+              <tr>
+                <th>Barcode</th>
+                <th>Título</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Equipo 1</th>
+                <th>Equipo 2</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if ($otrosRows === []): ?>
+                <tr>
+                  <td colspan="6" class="cmp-empty">No hay sobres para mostrar en este filtro.</td>
+                </tr>
+              <?php else: ?>
+                <?php foreach ($otrosRows as $idx => $row): ?>
+                  <tr>
+                    <td class="cmp-nowrap">
+                      <?= cmp_h((string)$row['barcode']) ?>
+                      <input type="hidden" name="barcode[]" value="<?= cmp_h((string)$row['barcode']) ?>">
+                    </td>
+                    <td>
+                      <?= cmp_h((string)$row['titulo']) ?>
+                      <input type="hidden" name="tituloSobre[]" value="<?= cmp_h((string)$row['titulo']) ?>">
+                    </td>
+                    <td class="cmp-nowrap">
+                      <?= cmp_h((string)$row['fecha']) ?>
+                      <input type="hidden" name="fecha[]" value="<?= cmp_h((string)$row['fecha']) ?>">
+                    </td>
+                    <td class="cmp-nowrap">
+                      <?= !empty($row['is_loaded']) ? 'cargado' : 'pendiente' ?>
+                    </td>
+                    <td>
+                      <?php if (!empty($row['is_loaded'])): ?>
+                        <?= cmp_h((string)$row['equipo1']) ?>
+                        <input type="hidden" name="equipo1[]" value="<?= cmp_h((string)$row['equipo1']) ?>">
+                      <?php else: ?>
+                        <select name="equipo1[]">
+                          <option value="">Seleccionar…</option>
+                          <?php foreach ($teamOptions as $team): ?>
+                            <option value="<?= cmp_h($team) ?>"><?= cmp_h($team) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <?php if (!empty($row['is_loaded'])): ?>
+                        <?= cmp_h((string)$row['equipo2']) ?>
+                        <input type="hidden" name="equipo2[]" value="<?= cmp_h((string)$row['equipo2']) ?>">
+                      <?php else: ?>
+                        <select name="equipo2[]">
+                          <option value="">Seleccionar…</option>
+                          <?php foreach ($teamOptions as $team): ?>
+                            <option value="<?= cmp_h($team) ?>"><?= cmp_h($team) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      <?php endif; ?>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:12px;">
+          <button type="submit" class="cmp-btn">Guardar completos en partidos</button>
+        </div>
+      </form>
+    <?php else: ?>
+      <div class="cmp-empty-state" style="margin-top:12px;">
+        <p>Elegí <strong>Otros…</strong> y buscá un campeonato en <code>registros.titulo245</code>.</p>
+      </div>
+    <?php endif; ?>
+  <?php endif; ?>
 </section>
 <?php endif; ?>
                 <section class="cmp-subsection">
@@ -953,5 +1141,160 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+
+<?php if ($hasSelectedNode): ?>
+<div class="cmp-modal-backdrop" id="cmpOtrosBackdrop" style="display:none;">
+  <div class="cmp-modal cmp-modal-medium" role="dialog" aria-modal="true" aria-labelledby="cmpOtrosTitle">
+    <div class="cmp-modal-head">
+      <h4 id="cmpOtrosTitle">Buscar campeonato en registros.titulo245</h4>
+      <button type="button" class="cmp-btn cmp-btn-sm" id="cmpCloseOtrosModal">Cerrar</button>
+    </div>
+
+    <div class="cmp-form-grid">
+      <label>
+        Buscar
+        <input type="text" id="cmpOtrosSearchInput" placeholder="Ej. Primera B 1975, Copa, Nacional...">
+      </label>
+      <div>
+        <button type="button" class="cmp-btn" id="cmpOtrosSearchBtn">Buscar</button>
+      </div>
+    </div>
+
+    <div id="cmpOtrosSearchStatus" style="margin-top:12px;"></div>
+    <div id="cmpOtrosSearchResults" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const tituloRegSelect = document.getElementById('tituloReg');
+  const openBtn = document.getElementById('cmpOpenOtrosModal');
+  const closeBtn = document.getElementById('cmpCloseOtrosModal');
+  const backdrop = document.getElementById('cmpOtrosBackdrop');
+  const searchBtn = document.getElementById('cmpOtrosSearchBtn');
+  const searchInput = document.getElementById('cmpOtrosSearchInput');
+  const resultsBox = document.getElementById('cmpOtrosSearchResults');
+  const statusBox = document.getElementById('cmpOtrosSearchStatus');
+  const normalLinkBtn = document.getElementById('cmpGoToNormalLinking');
+
+  const baseUrl = <?= json_encode('campeonatos_importacion_editar.php?id=' . (int)$id . '&node_id=' . (int)$currentNodeId) ?>;
+
+  function openModal() {
+    if (!backdrop) return;
+    backdrop.style.display = 'flex';
+    if (searchInput) searchInput.focus();
+  }
+
+  function closeModal() {
+    if (!backdrop) return;
+    backdrop.style.display = 'none';
+  }
+
+  function goToOtrosMode() {
+    window.location.href = baseUrl + '&tituloReg=__otros__#workspace';
+  }
+
+  function goToNormalMode(selected) {
+    if (!selected || selected === '__otros__') return;
+    window.location.href = baseUrl + '&tituloReg=' + encodeURIComponent(selected) + '#workspace';
+  }
+
+  async function doSearch() {
+    if (!searchInput || !resultsBox || !statusBox) return;
+
+    const q = searchInput.value.trim();
+    resultsBox.innerHTML = '';
+    if (!q) {
+      statusBox.textContent = 'Escribí algo para buscar.';
+      return;
+    }
+
+    statusBox.textContent = 'Buscando…';
+
+    try {
+      const resp = await fetch('campeonatos_titulo245_ajax.php?action=search_registros&q=' + encodeURIComponent(q), {
+        credentials: 'same-origin'
+      });
+      const data = await resp.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'No se pudo buscar.');
+      }
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      statusBox.textContent = items.length ? ('Resultados: ' + items.length) : 'Sin resultados.';
+
+      if (!items.length) {
+        resultsBox.innerHTML = '';
+        return;
+      }
+
+      const html = items.map(item => {
+        const href = baseUrl
+          + '&tituloReg=__otros__'
+          + '&otros_sys=' + encodeURIComponent(item.sys)
+          + '&otros_titulo=' + encodeURIComponent(item.titulo245)
+          + '#workspace';
+
+        return `
+          <div style="padding:8px 0; border-top:1px solid #ddd;">
+            <div><strong>${escapeHtml(item.titulo245)}</strong></div>
+            <div><small>sys ${escapeHtml(item.sys)}</small></div>
+            <div style="margin-top:6px;">
+              <a class="cmp-btn cmp-btn-sm" href="${href}">Elegir</a>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      resultsBox.innerHTML = html;
+    } catch (err) {
+      statusBox.textContent = err && err.message ? err.message : 'Error buscando registros.';
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  if (tituloRegSelect) {
+    tituloRegSelect.addEventListener('change', function () {
+      if (this.value === '__otros__') {
+        goToOtrosMode();
+        return;
+      }
+      if (this.value) {
+        goToNormalMode(this.value);
+      }
+    });
+  }
+
+  if (normalLinkBtn && tituloRegSelect) {
+    normalLinkBtn.addEventListener('click', function () {
+      if (tituloRegSelect.value) {
+        goToNormalMode(tituloRegSelect.value);
+      }
+    });
+  }
+
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (searchBtn) searchBtn.addEventListener('click', doSearch);
+  if (searchInput) {
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        doSearch();
+      }
+    });
+  }
+})();
+</script>
+<?php endif; ?>
 
 <?php cmp_render_footer(); ?>

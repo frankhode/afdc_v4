@@ -113,6 +113,14 @@ header.topbar{
   flex: 1;
 }
 
+.container-fluid{
+  width: calc(100% - 32px);
+  max-width: none;
+  margin: 18px auto 28px;
+  padding: 0;
+  flex: 1;
+}
+
 .card{
   background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
   border: 1px solid var(--border);

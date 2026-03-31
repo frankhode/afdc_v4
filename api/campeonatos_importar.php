@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $defaultText = (string)($_POST['source_value'] ?? '');
-cmp_render_header('Importar campeonato');
+cmp_render_header('Importar campeonato', 'container-fluid');
 ?>
 <link rel="stylesheet" href="../assets/css/campeonatos.css">
 

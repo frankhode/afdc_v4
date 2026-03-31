@@ -168,8 +168,13 @@ try {
             if ($nodeId <= 0) {
                 throw new InvalidArgumentException('Nodo inválido para generar propuestas.');
             }
+
             if ($tituloReg === '') {
                 throw new InvalidArgumentException('Seleccioná un tituloReg.');
+            }
+
+            if ($tituloReg === '__otros__') {
+                throw new InvalidArgumentException('Primero cargá sobres completos desde la opción Otros.');
             }
 
             $stats = cmp_edit_generate_match_links(
@@ -193,6 +198,64 @@ try {
                 'tituloReg' => $tituloReg,
             ]);
             break;
+
+            case 'save_other_manual_matches':
+                $tituloReg = trim((string)($_POST['tituloReg_manual'] ?? ''));
+                $otrosSys = trim((string)($_POST['otros_sys'] ?? ''));
+                $otrosTitulo = trim((string)($_POST['otros_titulo'] ?? ''));
+                $otrosFilter = trim((string)($_POST['otros_filter'] ?? 'pending'));
+
+                if ($nodeId <= 0) {
+                    throw new InvalidArgumentException('Nodo inválido para carga manual.');
+                }
+
+                if ($tituloReg === '') {
+                    throw new InvalidArgumentException('Falta el título del campeonato.');
+                }
+
+                if ($otrosSys === '') {
+                    throw new InvalidArgumentException('Falta el sys seleccionado.');
+                }
+
+                $barcodes = $_POST['barcode'] ?? [];
+                $titulosSobre = $_POST['tituloSobre'] ?? [];
+                $fechas = $_POST['fecha'] ?? [];
+                $equipos1 = $_POST['equipo1'] ?? [];
+                $equipos2 = $_POST['equipo2'] ?? [];
+
+                if (!is_array($barcodes) || !is_array($titulosSobre) || !is_array($fechas) || !is_array($equipos1) || !is_array($equipos2)) {
+                    throw new InvalidArgumentException('Carga manual inválida.');
+                }
+
+                $rows = [];
+                $count = max(count($barcodes), count($titulosSobre), count($fechas), count($equipos1), count($equipos2));
+
+                for ($i = 0; $i < $count; $i++) {
+                    $rows[] = [
+                        'barcode' => (string)($barcodes[$i] ?? ''),
+                        'tituloSobre' => (string)($titulosSobre[$i] ?? ''),
+                        'fecha' => (string)($fechas[$i] ?? ''),
+                        'equipo1' => (string)($equipos1[$i] ?? ''),
+                        'equipo2' => (string)($equipos2[$i] ?? ''),
+                    ];
+                }
+
+                $stats = cmp_edit_insert_manual_partidos_for_tituloreg($tituloReg, $rows);
+
+                $msg = sprintf(
+                    'Carga manual guardada. Insertados: %d · incompletos omitidos: %d · ya existentes: %d',
+                    (int)$stats['insertados'],
+                    (int)$stats['omitidos_incompletos'],
+                    (int)$stats['omitidos_existentes']
+                );
+
+                cmp_redirect_back($importId, $nodeId, $msg, null, [
+                    'tituloReg' => '__otros__',
+                    'otros_sys' => $otrosSys,
+                    'otros_titulo' => $otrosTitulo,
+                    'otros_filter' => $otrosFilter,
+                ]);
+                break;
 
         case 'validate_match_link':
             $linkId = (int)($_POST['link_id'] ?? 0);

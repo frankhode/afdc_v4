@@ -5,6 +5,7 @@ require_once __DIR__ . '/../inc/campeonatos_helpers.php';
 cmp_require_bootstrap_if_available();
 require_once __DIR__ . '/../inc/campeonatos_import_repo.php';
 require_once __DIR__ . '/../inc/campeonatos_parser.php';
+$mainClass = 'container-fluid';
 
 function cmp_render_tree_nodes(array $nodes): void {
     if (!$nodes) return;
@@ -129,7 +130,7 @@ try {
     $error = $e->getMessage();
 }
 
-cmp_render_header('Importación de campeonato');
+cmp_render_header('Importación de campeonato', 'container-fluid');
 ?>
 <link rel="stylesheet" href="../assets/css/campeonatos.css">
 <style>

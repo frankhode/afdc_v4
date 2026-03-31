@@ -56,20 +56,31 @@ function cmp_db(): mysqli {
     throw new RuntimeException('No se encontró una conexión MySQLi disponible.');
 }
 
-function cmp_render_header(string $title): void {
+function cmp_render_header(string $title, string $mainClass = 'container'): void {
     if (function_exists('render_header')) {
         render_header($title);
         return;
     }
+    $headerPath = __DIR__ . '/header.php';
+    if (is_file($headerPath)) {
+        $pageTitle = $title;
+        include $headerPath;
+        return;
+    }
     echo "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>" . cmp_h($title) . "</title>";
     echo '<link rel="stylesheet" href="../assets/css/campeonatos.css">';
-    echo '</head><body><main class="cmp-page">';
+    echo "</head><body><main class=\"" . cmp_h($mainClass) . "\">";
     echo '<header class="cmp-topbar"><h1>' . cmp_h($title) . '</h1></header>';
 }
 
 function cmp_render_footer(): void {
     if (function_exists('render_footer')) {
         render_footer();
+        return;
+    }
+    $footerPath = __DIR__ . '/footer.php';
+    if (is_file($footerPath)) {
+        include $footerPath;
         return;
     }
     echo '</main></body></html>';
