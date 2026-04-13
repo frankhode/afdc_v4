@@ -54,81 +54,167 @@ require_once __DIR__ . '/inc/nav.php';
 
 <style>
 .contactos-wrap{
-  max-width: 980px;
-  margin: 24px auto;
+  max-width: 1040px;
+  margin: 18px auto 28px;
   padding: 0 16px 32px;
 }
+
 .contactos-box{
-  border: 1px solid var(--border, #444);
-  background: var(--panel, #111);
-  padding: 18px;
+  border: 1px solid var(--afdc-border, var(--border, #444));
+  border-radius: var(--radius, 14px);
+  background: var(--afdc-card, var(--panel2, rgba(255,255,255,.04)));
+  padding: 22px;
+  box-shadow: var(--afdc-shadow, 0 2px 10px rgba(0,0,0,.08));
+  color: var(--afdc-text, var(--text, inherit));
 }
+
 .contactos-box h1{
   margin: 0 0 10px;
-  font-size: 1.5rem;
+  font-size: 2rem;
+  line-height: 1.15;
+  color: var(--afdc-text, var(--text, inherit));
 }
+
+.contactos-box p{
+  margin: 0 0 18px;
+  color: var(--afdc-text, var(--text, inherit));
+}
+
 .contactos-grid{
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 18px;
 }
+
+.contactos-field{
+  min-width: 0;
+}
+
 .contactos-field label{
   display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
+  margin-bottom: 7px;
+  font-weight: 700;
+  color: var(--afdc-text, var(--text, inherit));
 }
+
 .contactos-field input[type="text"],
 .contactos-field textarea,
 .contactos-field select{
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border, #666);
-  background: var(--input-bg, #000);
-  color: inherit;
+  padding: 11px 13px;
+  border: 1px solid var(--afdc-border, var(--border, #666));
+  border-radius: 12px;
+  background: var(--afdc-input-bg, var(--afdc-card, var(--bg, #fff)));
+  color: var(--afdc-text, var(--text, inherit));
   box-sizing: border-box;
+  font: inherit;
+  outline: none;
+  box-shadow: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
+
+.contactos-field input[type="text"]::placeholder,
+.contactos-field textarea::placeholder{
+  color: var(--afdc-muted, var(--muted, #777));
+  opacity: 1;
+}
+
+.contactos-field input[type="text"]:focus,
+.contactos-field textarea:focus,
+.contactos-field select:focus{
+  border-color: var(--afdc-border-strong, var(--afdc-text, var(--text, #333)));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--afdc-text, var(--text, #333)) 12%, transparent);
+}
+
+.contactos-field textarea{
+  min-height: 230px;
+  resize: vertical;
+}
+
 .contactos-help{
-  font-size: .92rem;
-  opacity: .85;
-  margin-top: 6px;
+  font-size: .95rem;
+  color: var(--afdc-muted, var(--muted, var(--afdc-text, var(--text, inherit))));
+  opacity: .82;
+  margin-top: 7px;
 }
+
 .contactos-actions{
-  display:flex;
-  gap:12px;
-  align-items:center;
-  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
   flex-wrap: wrap;
 }
+
 .contactos-actions button{
-  padding: 10px 16px;
+  appearance: none;
+  border: 1px solid var(--afdc-border, var(--border, #666));
+  border-radius: 12px;
+  background: var(--afdc-btn, var(--afdc-card, var(--panel, #eee)));
+  color: var(--afdc-text, var(--text, inherit));
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 18px;
+  min-height: 42px;
   cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, transform .05s ease;
 }
+
+.contactos-actions button:hover:not([disabled]){
+  background: var(--afdc-btn-hover, var(--afdc-card-hover, var(--panel2, #f5f5f5)));
+}
+
+.contactos-actions button:active:not([disabled]){
+  transform: translateY(1px);
+}
+
+.contactos-actions button[disabled]{
+  opacity: .65;
+  cursor: wait;
+}
+
+.contactos-done{
+  font-size: .95rem;
+  color: var(--afdc-muted, var(--muted, var(--afdc-text, var(--text, inherit))));
+  opacity: .85;
+}
+
+.contactos-status{
+  display: none;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--afdc-border, var(--border, #666));
+  border-radius: 12px;
+  background: var(--afdc-card, var(--panel, #eee));
+  color: var(--afdc-text, var(--text, inherit));
+}
+
+.contactos-status.is-visible{
+  display: block;
+}
+
+.contactos-status strong{
+  display: block;
+  margin-bottom: 4px;
+}
+
+.contactos-status.is-success{
+  border-color: rgba(90, 150, 90, .45);
+}
+
+.contactos-status.is-error{
+  border-color: rgba(180, 90, 90, .45);
+}
+
 @media (min-width: 860px){
   .contactos-grid{
     grid-template-columns: 1fr 1fr;
   }
+
   .contactos-field--full{
     grid-column: 1 / -1;
   }
-}
-
-.contactos-status{
-  display:none;
-  margin-top: 14px;
-  padding: 10px 12px;
-  border: 1px solid var(--border, #666);
-  background: var(--input-bg, #000);
-}
-.contactos-status.is-visible{
-  display:block;
-}
-.contactos-status strong{
-  display:block;
-  margin-bottom: 4px;
-}
-.contactos-actions button[disabled]{
-  opacity: .7;
-  cursor: wait;
 }
 </style>
 
@@ -138,7 +224,12 @@ require_once __DIR__ . '/inc/nav.php';
 
     <p>Fuente inicial: <strong>Bajas</strong>.</p>
 
-    <form id="contactosForm" method="post" action="<?= h(BASE_URL . '/api/contactos_generar.php') ?>">
+    <form
+      id="contactosForm"
+      method="post"
+      action="<?= h(BASE_URL . '/api/contactos_generar.php') ?>"
+      target="contactosHiddenFrame"
+    >
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
 
       <div class="contactos-grid">
@@ -153,40 +244,136 @@ require_once __DIR__ . '/inc/nav.php';
           <select id="output_mode" name="output_mode" required>
             <option value="jpg_per_sobre">JPG por sobre</option>
             <option value="pdf_per_sobre">PDF por sobre</option>
-            <option value="pdf_lote">PDF por lote</option>
+            <option value="pdf_lote" selected>PDF por lote</option>
           </select>
         </div>
 
         <div class="contactos-field contactos-field--full">
           <label for="lista_barcodes">Lista de barcodes</label>
-          <textarea id="lista_barcodes" name="lista_barcodes" rows="10" placeholder="FO123456&#10;FO123457&#10;FO123458"></textarea>
+          <textarea
+            id="lista_barcodes"
+            name="lista_barcodes"
+            rows="10"
+            placeholder="FO123456&#10;FO123457&#10;FO123458"
+          ></textarea>
           <div class="contactos-help">Podés separarlos por salto de línea, coma o punto y coma.</div>
         </div>
       </div>
 
       <div class="contactos-actions">
         <button type="submit" id="contactosSubmitBtn">Generar</button>
+        <span id="contactosDoneHint" class="contactos-done" hidden>Listo. Ya podés generar otra hoja.</span>
       </div>
+
       <div id="contactosStatus" class="contactos-status" aria-live="polite">
         <strong>Generando hojas de contacto...</strong>
         <span>Esto puede tardar varios segundos cuando hay varios sobres.</span>
       </div>
     </form>
+
+    <iframe name="contactosHiddenFrame" id="contactosHiddenFrame" hidden></iframe>
   </div>
 </main>
 
 <script>
 (function () {
   var form = document.getElementById('contactosForm');
+  var frame = document.getElementById('contactosHiddenFrame');
   var btn = document.getElementById('contactosSubmitBtn');
   var status = document.getElementById('contactosStatus');
+  var doneHint = document.getElementById('contactosDoneHint');
+  var busy = false;
+  var frameReady = false;
 
-  if (!form || !btn || !status) return;
+  if (!form || !frame || !btn || !status || !doneHint) {
+    return;
+  }
 
-  form.addEventListener('submit', function () {
+  function setGenerating() {
     btn.disabled = true;
     btn.textContent = 'Generando...';
+    doneHint.hidden = true;
     status.classList.add('is-visible');
+    status.classList.remove('is-success', 'is-error');
+    status.innerHTML = '<strong>Generando hojas de contacto...</strong><span>Esto puede tardar varios segundos cuando hay varios sobres.</span>';
+  }
+
+  function setIdle(message, kind) {
+    busy = false;
+    btn.disabled = false;
+    btn.textContent = 'Generar';
+    doneHint.hidden = false;
+
+    status.classList.add('is-visible');
+    status.classList.remove('is-success', 'is-error');
+
+    if (kind === 'success') {
+      status.classList.add('is-success');
+    } else if (kind === 'error') {
+      status.classList.add('is-error');
+    }
+
+    status.innerHTML = '<strong>' + message + '</strong><span>Podés volver a generar sin recargar la página.</span>';
+  }
+
+  function readFrameText() {
+    try {
+      var doc = frame.contentDocument || (frame.contentWindow ? frame.contentWindow.document : null);
+      if (!doc || !doc.body) {
+        return '';
+      }
+      return (doc.body.textContent || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  form.addEventListener('submit', function (ev) {
+    if (busy) {
+      ev.preventDefault();
+      return;
+    }
+
+    busy = true;
+    setGenerating();
+  });
+
+  frame.addEventListener('load', function () {
+    if (!frameReady) {
+      frameReady = true;
+      return;
+    }
+
+    if (!busy) {
+      return;
+    }
+
+    var text = readFrameText();
+    var lower = text.toLowerCase();
+
+    if (
+      lower.indexOf('error') !== -1 ||
+      lower.indexOf('fatal') !== -1 ||
+      lower.indexOf('warning') !== -1 ||
+      lower.indexOf('notice') !== -1
+    ) {
+      setIdle('La generación terminó con una respuesta del servidor para revisar.', 'error');
+      return;
+    }
+
+    setIdle('La generación terminó.', 'success');
+  });
+
+  window.addEventListener('pageshow', function () {
+    if (!busy) {
+      btn.disabled = false;
+      btn.textContent = 'Generar';
+    }
+  });
+
+  window.addEventListener('pagehide', function () {
+    busy = false;
+    btn.disabled = false;
   });
 })();
 </script>
@@ -196,3 +383,4 @@ $footerPath = __DIR__ . '/inc/footer.php';
 if (is_file($footerPath)) {
     require_once $footerPath;
 }
+?>
