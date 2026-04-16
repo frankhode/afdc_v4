@@ -25,16 +25,15 @@ if ($csrfPost === '' || $csrfSess === '' || !hash_equals($csrfSess, $csrfPost)) 
     exit;
 }
 
-$barcode    = trim((string)p('barcode', ''));
-$lista      = trim((string)p('lista_barcodes', ''));
+$entradas   = trim((string)p('entradas', ''));
 $outputMode = trim((string)p('output_mode', ''));
 
-$barcodes = afdc_contactos_normalizar_barcodes($barcode, $lista);
+$items = afdc_contactos_normalizar_entradas($entradas);
 
-if (!$barcodes) {
+if (!$items) {
     http_response_code(422);
     header('Content-Type: text/plain; charset=utf-8');
-    echo 'No se recibió ningún barcode';
+    echo 'No se recibió ninguna entrada';
     exit;
 }
 
@@ -45,9 +44,16 @@ if (!in_array($outputMode, $allowedModes, true)) {
     echo 'Modo de salida inválido';
     exit;
 }
+$debugFile = __DIR__ . '/../tmp/contactos_debug.log';
+if (!is_dir(dirname($debugFile))) {
+    @mkdir(dirname($debugFile), 0777, true);
+}
+@file_put_contents($debugFile, "=== " . date('Y-m-d H:i:s') . " ===\n", FILE_APPEND);
+@file_put_contents($debugFile, "Entradas:\n" . $entradas . "\n", FILE_APPEND);
+@file_put_contents($debugFile, "Modo: " . $outputMode . "\n", FILE_APPEND);
 
 try {
-    $result = afdc_contactos_generar($barcodes, $outputMode);
+    $result = afdc_contactos_generar_entradas($items, $outputMode);
 
     $file = (string)$result['path'];
     $name = (string)$result['downloadName'];
@@ -74,10 +80,14 @@ try {
     header('Pragma: public');
 
     readfile($file);
+    @file_put_contents($debugFile, "Antes de generar\n", FILE_APPEND);
+$result = afdc_contactos_generar_entradas($items, $outputMode);
+@file_put_contents($debugFile, "Despues de generar\n", FILE_APPEND);
     exit;
 } catch (Throwable $e) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'Error al generar hojas de contacto: ' . $e->getMessage();
+    @file_put_contents($debugFile, "ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
     exit;
 }

@@ -9,12 +9,28 @@ declare(strict_types=1);
  *   - pdf_per_sobre
  *   - pdf_lote
  *
- * En esta versión las imágenes se cargan desde la URL pública
- * BASE_URL + '/bajas/...', alineado con el alias Apache del proyecto.
+ * En esta versión las imágenes se cargan desde:
+ * - barcode AFDC (Bajas vía URL pública)
+ * - ruta local de carpeta en Windows (solo JPG de primer nivel)
  */
 
 if (!defined('AFDC_CONTACTOS_A4_W')) define('AFDC_CONTACTOS_A4_W', 1754); // A4 landscape ~150dpi
 if (!defined('AFDC_CONTACTOS_A4_H')) define('AFDC_CONTACTOS_A4_H', 1240);
+
+function afdc_contactos_debug_file(): string
+{
+    $dir = __DIR__ . '/../tmp';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+    return $dir . '/contactos_debug.log';
+}
+
+function afdc_contactos_debug(string $message): void
+{
+    $file = afdc_contactos_debug_file();
+    @file_put_contents($file, '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
+}
 
 function afdc_contactos_slug(string $s): string
 {
@@ -74,6 +90,53 @@ function afdc_contactos_normalizar_barcodes(?string $barcode, ?string $lista): a
         }
     }
     return $clean;
+}
+
+function afdc_contactos_normalizar_entradas(?string $texto): array
+{
+    $texto = str_replace(["\r\n", "\r"], "\n", (string)$texto);
+    $out = [];
+    $seen = [];
+
+    foreach (explode("\n", $texto) as $linea) {
+        $linea = trim($linea);
+        if ($linea === '') {
+            continue;
+        }
+
+        if (!isset($seen[$linea])) {
+            $seen[$linea] = true;
+            $out[] = $linea;
+        }
+    }
+
+    return $out;
+}
+
+function afdc_contactos_es_ruta_local(string $entrada): bool
+{
+    $entrada = trim($entrada);
+
+    if ($entrada === '') {
+        return false;
+    }
+
+    if (preg_match('/^[A-Za-z]:[\\\\\\/]/', $entrada)) {
+        return true;
+    }
+
+    if (str_starts_with($entrada, '\\\\')) {
+        return true;
+    }
+
+    return false;
+}
+
+function afdc_contactos_etiqueta_desde_ruta(string $ruta): string
+{
+    $ruta = rtrim(str_replace('\\', '/', trim($ruta)), '/');
+    $base = basename($ruta);
+    return $base !== '' ? $base : 'CARPETA_LOCAL';
 }
 
 function afdc_contactos_public_bajas_base_url(): string
@@ -196,6 +259,77 @@ function afdc_contactos_resolver_imagenes_por_barcode(string $barcode): array
     return $items;
 }
 
+function afdc_contactos_resolver_imagenes_desde_ruta(string $ruta): array
+{
+    $rutaOriginal = trim($ruta);
+    afdc_contactos_debug('Resolver ruta local (raw): ' . $rutaOriginal);
+
+    if ($rutaOriginal === '') {
+        afdc_contactos_debug('Ruta vacía');
+        return [];
+    }
+
+    $rutaReparada = afdc_contactos_reparar_mojibake_utf8($rutaOriginal);
+    if ($rutaReparada !== $rutaOriginal) {
+        afdc_contactos_debug('Ruta reparada UTF-8: ' . $rutaReparada);
+    }
+
+    $rutaFs = afdc_contactos_normalizar_ruta_windows($rutaReparada);
+    if ($rutaFs !== $rutaReparada) {
+        afdc_contactos_debug('Ruta convertida para filesystem: ' . $rutaFs);
+    }
+
+    if (!@is_dir($rutaFs)) {
+        afdc_contactos_debug('No es directorio o no existe: ' . $rutaFs);
+        return [];
+    }
+
+    $label = afdc_contactos_etiqueta_desde_ruta($rutaReparada);
+    $items = [];
+
+    $scan = @scandir($rutaFs);
+    if ($scan === false) {
+        afdc_contactos_debug('scandir() devolvió false para: ' . $rutaFs);
+        return [];
+    }
+
+    foreach ($scan as $name) {
+        if ($name === '.' || $name === '..') {
+            continue;
+        }
+
+        $full = rtrim($rutaFs, "\\/") . DIRECTORY_SEPARATOR . $name;
+
+        if (!@is_file($full)) {
+            continue;
+        }
+
+        if (!preg_match('/\.jpg$/i', $name)) {
+            continue;
+        }
+
+        $type = function_exists('exif_imagetype') ? @exif_imagetype($full) : 0;
+        if ($type !== IMAGETYPE_JPEG) {
+            afdc_contactos_debug('Se omitió archivo no JPEG válido: ' . $full);
+            continue;
+        }
+
+        $items[] = [
+            'barcode'      => $label,
+            'nombramiento' => $name,
+            'source'       => $full,
+            'ext'          => 'jpg',
+        ];
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        return strnatcasecmp((string)$a['nombramiento'], (string)$b['nombramiento']);
+    });
+
+    afdc_contactos_debug('Ruta local OK: ' . $rutaFs . ' | JPG válidos: ' . count($items));
+    return $items;
+}
+
 function afdc_contactos_render_sheet_pages(string $barcode, array $items, string $tempDir, string $theme = 'dark'): array
 {
     if (!extension_loaded('gd')) {
@@ -230,6 +364,8 @@ function afdc_contactos_render_sheet_pages(string $barcode, array $items, string
     $warnings = [];
     $total = count($items);
     $chunks = array_chunk($items, $perPage);
+
+    afdc_contactos_debug('Render páginas para [' . $barcode . '] | imágenes: ' . $total . ' | páginas esperadas: ' . count($chunks));
 
     foreach ($chunks as $pageIdx => $chunk) {
         $im = imagecreatetruecolor($pageW, $pageH);
@@ -314,6 +450,8 @@ function afdc_contactos_render_sheet_pages(string $barcode, array $items, string
         $pages[] = $file;
     }
 
+    afdc_contactos_debug('Render finalizado para [' . $barcode . '] | páginas generadas: ' . count($pages));
+
     return [
         'pages'    => $pages,
         'warnings' => $warnings,
@@ -341,6 +479,8 @@ function afdc_contactos_zip(array $entries, string $zipPath): void
 
 function afdc_contactos_build_pdf_from_jpegs(array $jpegFiles, string $pdfPath): void
 {
+    afdc_contactos_debug('Construyendo PDF: ' . $pdfPath . ' | páginas JPEG: ' . count($jpegFiles));
+
     if (!$jpegFiles) {
         throw new RuntimeException('No hay páginas JPEG para generar PDF');
     }
@@ -408,7 +548,12 @@ function afdc_contactos_build_pdf_from_jpegs(array $jpegFiles, string $pdfPath):
     }
     $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root {$catalogId} 0 R >>\nstartxref\n{$xrefPos}\n%%EOF";
 
-    file_put_contents($pdfPath, $pdf);
+    $written = @file_put_contents($pdfPath, $pdf);
+    if ($written === false) {
+        throw new RuntimeException('No se pudo escribir el PDF final');
+    }
+
+    afdc_contactos_debug('PDF escrito: ' . $pdfPath . ' | bytes: ' . $written);
 }
 
 function afdc_contactos_manifest_text(array $warnings): string
@@ -427,6 +572,8 @@ function afdc_contactos_generar(array $barcodes, string $outputMode): array
     $cleanup = [$tempDir];
     $warnings = [];
     $pagesByBarcode = [];
+
+    afdc_contactos_debug('afdc_contactos_generar() | barcodes: ' . count($barcodes) . ' | modo: ' . $outputMode);
 
     foreach ($barcodes as $barcode) {
         $items = afdc_contactos_resolver_imagenes_por_barcode($barcode);
@@ -556,4 +703,275 @@ function afdc_contactos_generar(array $barcodes, string $outputMode): array
 
     afdc_contactos_rrmdir($tempDir);
     throw new RuntimeException('Modo de salida inválido');
+}
+
+function afdc_contactos_generar_entradas(array $entradas, string $outputMode): array
+{
+    if (!$entradas) {
+        throw new RuntimeException('No se recibieron entradas');
+    }
+
+    $tempDir = afdc_contactos_temp_dir();
+    $cleanup = [$tempDir];
+    $warnings = [];
+    $pagesByKey = [];
+
+    afdc_contactos_debug('afdc_contactos_generar_entradas() | entradas: ' . count($entradas) . ' | modo: ' . $outputMode);
+
+    foreach ($entradas as $entrada) {
+        $entrada = trim((string)$entrada);
+        if ($entrada === '') {
+            continue;
+        }
+
+        afdc_contactos_debug('Procesando entrada: ' . $entrada);
+
+        if (afdc_contactos_es_ruta_local($entrada)) {
+            $key = afdc_contactos_etiqueta_desde_ruta($entrada);
+            $items = afdc_contactos_resolver_imagenes_desde_ruta($entrada);
+
+            afdc_contactos_debug('Entrada interpretada como ruta local | key: ' . $key . ' | JPG válidos: ' . count($items));
+
+            if (!$items) {
+                $warnings[] = '[' . $key . '] Sin JPG válidos en la carpeta';
+                continue;
+            }
+        } else {
+            $key = $entrada;
+            $items = afdc_contactos_resolver_imagenes_por_barcode($entrada);
+
+            afdc_contactos_debug('Entrada interpretada como barcode | key: ' . $key . ' | imágenes: ' . count($items));
+
+            if (!$items) {
+                $warnings[] = '[' . $entrada . '] Sin imágenes en Bajas';
+                continue;
+            }
+        }
+
+        $theme = ($outputMode === 'jpg_per_sobre') ? 'dark' : 'light';
+        $render = afdc_contactos_render_sheet_pages($key, $items, $tempDir, $theme);
+        $pages = $render['pages'] ?? [];
+        $warnings = array_merge($warnings, $render['warnings'] ?? []);
+
+        afdc_contactos_debug('Páginas generadas para [' . $key . ']: ' . count($pages));
+
+        if ($pages) {
+            $pagesByKey[$key] = $pages;
+        } else {
+            $warnings[] = '[' . $key . '] No se pudieron generar páginas';
+        }
+    }
+
+    if (!$pagesByKey) {
+        afdc_contactos_rrmdir($tempDir);
+        throw new RuntimeException('No se pudo generar ninguna hoja de contacto');
+    }
+
+    $stamp = date('Ymd_His');
+
+    if ($outputMode === 'jpg_per_sobre') {
+        if (count($pagesByKey) === 1) {
+            $key = array_key_first($pagesByKey);
+            $pages = $pagesByKey[$key];
+
+            if (count($pages) === 1) {
+                return [
+                    'path'         => $pages[0],
+                    'downloadName' => afdc_contactos_slug((string)$key) . '_contacto_01.jpg',
+                    'mime'         => 'image/jpeg',
+                    'cleanupDirs'  => $cleanup,
+                ];
+            }
+        }
+
+        $zipPath = $tempDir . DIRECTORY_SEPARATOR . 'contactos_jpg_' . $stamp . '.zip';
+        $entries = [];
+
+        foreach ($pagesByKey as $key => $pages) {
+            foreach ($pages as $pagePath) {
+                $entries[] = [
+                    'path' => $pagePath,
+                    'name' => afdc_contactos_slug((string)$key) . '/' . basename($pagePath),
+                ];
+            }
+        }
+
+        $manifest = $tempDir . DIRECTORY_SEPARATOR . 'errores.txt';
+        file_put_contents($manifest, afdc_contactos_manifest_text($warnings));
+        $entries[] = ['path' => $manifest, 'name' => 'errores.txt'];
+
+        afdc_contactos_zip($entries, $zipPath);
+
+        return [
+            'path'         => $zipPath,
+            'downloadName' => 'contactos_jpg_' . $stamp . '.zip',
+            'mime'         => 'application/zip',
+            'cleanupDirs'  => $cleanup,
+        ];
+    }
+
+    if ($outputMode === 'pdf_per_sobre') {
+        if (count($pagesByKey) === 1) {
+            $key = array_key_first($pagesByKey);
+            $pdfPath = $tempDir . DIRECTORY_SEPARATOR . afdc_contactos_slug((string)$key) . '_contacto.pdf';
+            afdc_contactos_build_pdf_from_jpegs($pagesByKey[$key], $pdfPath);
+
+            return [
+                'path'         => $pdfPath,
+                'downloadName' => afdc_contactos_slug((string)$key) . '_contacto.pdf',
+                'mime'         => 'application/pdf',
+                'cleanupDirs'  => $cleanup,
+            ];
+        }
+
+        $zipPath = $tempDir . DIRECTORY_SEPARATOR . 'contactos_pdf_' . $stamp . '.zip';
+        $entries = [];
+
+        foreach ($pagesByKey as $key => $pages) {
+            $pdfPath = $tempDir . DIRECTORY_SEPARATOR . afdc_contactos_slug((string)$key) . '_contacto.pdf';
+            afdc_contactos_build_pdf_from_jpegs($pages, $pdfPath);
+            $entries[] = [
+                'path' => $pdfPath,
+                'name' => afdc_contactos_slug((string)$key) . '_contacto.pdf',
+            ];
+        }
+
+        $manifest = $tempDir . DIRECTORY_SEPARATOR . 'errores.txt';
+        file_put_contents($manifest, afdc_contactos_manifest_text($warnings));
+        $entries[] = ['path' => $manifest, 'name' => 'errores.txt'];
+
+        afdc_contactos_zip($entries, $zipPath);
+
+        return [
+            'path'         => $zipPath,
+            'downloadName' => 'contactos_pdf_' . $stamp . '.zip',
+            'mime'         => 'application/zip',
+            'cleanupDirs'  => $cleanup,
+        ];
+    }
+
+    if ($outputMode === 'pdf_lote') {
+        $allPages = [];
+
+        foreach ($pagesByKey as $pages) {
+            foreach ($pages as $pagePath) {
+                $allPages[] = $pagePath;
+            }
+        }
+
+        afdc_contactos_debug('Construyendo PDF lote con ' . count($allPages) . ' páginas');
+
+        $pdfPath = $tempDir . DIRECTORY_SEPARATOR . 'contactos_lote_' . $stamp . '.pdf';
+        afdc_contactos_build_pdf_from_jpegs($allPages, $pdfPath);
+
+        return [
+            'path'         => $pdfPath,
+            'downloadName' => 'contactos_lote_' . $stamp . '.pdf',
+            'mime'         => 'application/pdf',
+            'cleanupDirs'  => $cleanup,
+        ];
+    }
+
+    afdc_contactos_rrmdir($tempDir);
+    throw new RuntimeException('Modo de salida inválido');
+}
+
+function afdc_contactos_normalizar_ruta_windows(string $ruta): string
+{
+    $ruta = trim($ruta);
+    if ($ruta === '') {
+        return '';
+    }
+
+    $candidatas = [$ruta];
+
+    if (function_exists('mb_convert_encoding')) {
+        $cand1 = @mb_convert_encoding($ruta, 'Windows-1252', 'UTF-8');
+        if (is_string($cand1) && $cand1 !== '') {
+            $candidatas[] = $cand1;
+        }
+
+        $cand2 = @mb_convert_encoding($ruta, 'ISO-8859-1', 'UTF-8');
+        if (is_string($cand2) && $cand2 !== '') {
+            $candidatas[] = $cand2;
+        }
+    }
+
+    if (function_exists('iconv')) {
+        $cand3 = @iconv('UTF-8', 'Windows-1252//IGNORE', $ruta);
+        if ($cand3 !== false && $cand3 !== '') {
+            $candidatas[] = $cand3;
+        }
+
+        $cand4 = @iconv('UTF-8', 'ISO-8859-1//IGNORE', $ruta);
+        if ($cand4 !== false && $cand4 !== '') {
+            $candidatas[] = $cand4;
+        }
+    }
+
+    foreach ($candidatas as $cand) {
+        if (is_string($cand) && $cand !== '' && @is_dir($cand)) {
+            return $cand;
+        }
+    }
+
+    return $ruta;
+}
+
+
+function afdc_contactos_reparar_mojibake_utf8(string $texto): string
+{
+    $texto = trim($texto);
+    if ($texto === '') {
+        return '';
+    }
+
+    $candidatos = [$texto];
+
+    if (function_exists('mb_convert_encoding')) {
+        $fix1 = @mb_convert_encoding($texto, 'UTF-8', 'Windows-1252');
+        if (is_string($fix1) && $fix1 !== '') {
+            $candidatos[] = $fix1;
+        }
+
+        $fix2 = @mb_convert_encoding($texto, 'UTF-8', 'ISO-8859-1');
+        if (is_string($fix2) && $fix2 !== '') {
+            $candidatos[] = $fix2;
+        }
+    }
+
+    if (function_exists('iconv')) {
+        $fix3 = @iconv('Windows-1252', 'UTF-8//IGNORE', $texto);
+        if ($fix3 !== false && $fix3 !== '') {
+            $candidatos[] = $fix3;
+        }
+
+        $fix4 = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $texto);
+        if ($fix4 !== false && $fix4 !== '') {
+            $candidatos[] = $fix4;
+        }
+    }
+
+    foreach ($candidatos as $cand) {
+        if (!is_string($cand) || $cand === '') {
+            continue;
+        }
+
+        if (strpos($cand, 'Ã') === false && strpos($cand, 'Â') === false) {
+            return $cand;
+        }
+    }
+
+    return $texto;
+}
+
+function afdc_contactos_preparar_ruta_local(string $ruta): string
+{
+    $ruta = trim($ruta);
+    if ($ruta === '') {
+        return '';
+    }
+
+    $reparada = afdc_contactos_reparar_mojibake_utf8($ruta);
+    return afdc_contactos_normalizar_ruta_windows($reparada);
 }

@@ -222,23 +222,16 @@ require_once __DIR__ . '/inc/nav.php';
   <div class="contactos-box">
     <h1>Hojas de contacto</h1>
 
-    <p>Fuente inicial: <strong>Bajas</strong>.</p>
+    <p>Ingresá una o más líneas. Cada línea puede ser un barcode de AFDC o una ruta completa de carpeta en Windows. Para carpetas locales se tomarán solo los JPG del primer nivel.</p>
 
     <form
       id="contactosForm"
       method="post"
       action="<?= h(BASE_URL . '/api/contactos_generar.php') ?>"
-      target="contactosHiddenFrame"
     >
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
 
       <div class="contactos-grid">
-        <div class="contactos-field">
-          <label for="barcode">Barcode único</label>
-          <input type="text" id="barcode" name="barcode" placeholder="FO123456">
-          <div class="contactos-help">Opcional si usás la lista.</div>
-        </div>
-
         <div class="contactos-field">
           <label for="output_mode">Salida</label>
           <select id="output_mode" name="output_mode" required>
@@ -249,14 +242,14 @@ require_once __DIR__ . '/inc/nav.php';
         </div>
 
         <div class="contactos-field contactos-field--full">
-          <label for="lista_barcodes">Lista de barcodes</label>
+          <label for="entradas">Barcodes y/o rutas completas</label>
           <textarea
-            id="lista_barcodes"
-            name="lista_barcodes"
-            rows="10"
-            placeholder="FO123456&#10;FO123457&#10;FO123458"
+            id="entradas"
+            name="entradas"
+            rows="12"
+            placeholder="FO123456&#10;FO123457&#10;U:\Fototeca\Usuarios\Saslasky\FO027085&#10;U:\Fototeca\Usuarios\Saslasky\FO027086"
           ></textarea>
-          <div class="contactos-help">Podés separarlos por salto de línea, coma o punto y coma.</div>
+          <div class="contactos-help">Una entrada por línea. Cada línea puede ser un barcode o una ruta absoluta de carpeta en Windows. En rutas locales se toman solo JPG del primer nivel.</div>
         </div>
       </div>
 
@@ -282,10 +275,11 @@ require_once __DIR__ . '/inc/nav.php';
   var btn = document.getElementById('contactosSubmitBtn');
   var status = document.getElementById('contactosStatus');
   var doneHint = document.getElementById('contactosDoneHint');
+  var entradasInput = document.getElementById('entradas');
   var busy = false;
   var frameReady = false;
 
-  if (!form || !frame || !btn || !status || !doneHint) {
+  if (!form || !frame || !btn || !status || !doneHint || !entradasInput) {
     return;
   }
 
@@ -294,43 +288,41 @@ require_once __DIR__ . '/inc/nav.php';
     btn.textContent = 'Generando...';
     doneHint.hidden = true;
     status.classList.add('is-visible');
-    status.classList.remove('is-success', 'is-error');
-    status.innerHTML = '<strong>Generando hojas de contacto...</strong><span>Esto puede tardar varios segundos cuando hay varios sobres.</span>';
+    status.innerHTML = '<strong>Generando hojas de contacto...</strong><span>Esto puede tardar varios segundos cuando hay muchas entradas o muchos JPG.</span>';
   }
 
-  function setIdle(message, kind) {
+  function setIdle(message) {
     busy = false;
     btn.disabled = false;
     btn.textContent = 'Generar';
     doneHint.hidden = false;
-
     status.classList.add('is-visible');
-    status.classList.remove('is-success', 'is-error');
-
-    if (kind === 'success') {
-      status.classList.add('is-success');
-    } else if (kind === 'error') {
-      status.classList.add('is-error');
-    }
-
     status.innerHTML = '<strong>' + message + '</strong><span>Podés volver a generar sin recargar la página.</span>';
   }
 
   function readFrameText() {
     try {
       var doc = frame.contentDocument || (frame.contentWindow ? frame.contentWindow.document : null);
-      if (!doc || !doc.body) {
-        return '';
-      }
+      if (!doc || !doc.body) return '';
       return (doc.body.textContent || '').trim();
     } catch (e) {
       return '';
     }
   }
 
+  function hasEntradas() {
+    return entradasInput.value.trim() !== '';
+  }
+
   form.addEventListener('submit', function (ev) {
     if (busy) {
       ev.preventDefault();
+      return;
+    }
+
+    if (!hasEntradas()) {
+      ev.preventDefault();
+      setIdle('Ingresá al menos una línea con barcode o ruta completa.');
       return;
     }
 
@@ -343,10 +335,7 @@ require_once __DIR__ . '/inc/nav.php';
       frameReady = true;
       return;
     }
-
-    if (!busy) {
-      return;
-    }
+    if (!busy) return;
 
     var text = readFrameText();
     var lower = text.toLowerCase();
@@ -355,13 +344,14 @@ require_once __DIR__ . '/inc/nav.php';
       lower.indexOf('error') !== -1 ||
       lower.indexOf('fatal') !== -1 ||
       lower.indexOf('warning') !== -1 ||
-      lower.indexOf('notice') !== -1
+      lower.indexOf('notice') !== -1 ||
+      lower.indexOf('inválido') !== -1
     ) {
-      setIdle('La generación terminó con una respuesta del servidor para revisar.', 'error');
+      setIdle('La generación terminó con una respuesta del servidor para revisar.');
       return;
     }
 
-    setIdle('La generación terminó.', 'success');
+    setIdle('La generación terminó.');
   });
 
   window.addEventListener('pageshow', function () {
