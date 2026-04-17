@@ -224,11 +224,13 @@ cmp_render_header('Importaciones de campeonatos', 'container-fluid');
                                     data-dashboard-action
                                     data-import-id="<?= (int)$row['id'] ?>"
                                     data-view-url="campeonatos_importacion.php?id=<?= (int)$row['id'] ?>"
-                                    data-edit-url="campeonatos_importacion_editar.php?id=<?= (int)$row['id'] ?>">
+                                    data-edit-url="campeonatos_importacion_editar.php?id=<?= (int)$row['id'] ?>"
+                                    data-visor-url="campeonatos_visor.php?id=<?= (int)$row['id'] ?>">
                                 <option value="">Acciones…</option>
                                 <option value="view">Ver importación</option>
                                 <option value="edit">Editar estructura</option>
                                 <option value="delete">Borrar definitivamente</option>
+                                <option value="visor">Abrir visor</option>
                             </select>
 
                             <form method="post" action="campeonatos_importaciones_accion.php"
@@ -258,6 +260,11 @@ document.addEventListener('DOMContentLoaded', function () {
     select.addEventListener('change', function () {
         const value = select.value;
         if (!value) return;
+
+        if (value === 'visor') {
+            window.location.href = select.dataset.visorUrl;
+            return;
+        }
 
         if (value === 'view') {
             window.location.href = select.dataset.viewUrl;
