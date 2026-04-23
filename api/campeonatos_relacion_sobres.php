@@ -17,23 +17,37 @@ $otrosSys = trim((string)($_GET['otros_sys'] ?? ''));
 $otrosTitulo = trim((string)($_GET['otros_titulo'] ?? ''));
 
 $import = null;
+$activeImports = [];
 $tituloRegOptions = [];
 $leftTreeHtml = '';
 $rightPanelHtml = '';
 
 try {
-    if ($id <= 0) {
-        throw new InvalidArgumentException('ID inválido.');
+    $db = cmp_db();
+    $sqlActive = "
+        SELECT id, titulo_fuente
+        FROM cmp_importaciones
+        ORDER BY titulo_fuente ASC, id DESC
+    ";
+    $resActive = $db->query($sqlActive);
+    if (!$resActive) {
+        throw new RuntimeException($db->error);
     }
-
-    $import = cmp_rel_get_import($id);
-    if (!$import) {
-        throw new RuntimeException('La importación no existe.');
+    while ($row = $resActive->fetch_assoc()) {
+        $activeImports[] = $row;
     }
+    $resActive->free();
 
-    $tituloRegOptions = cmp_rel_get_tituloreg_options();
-    $leftTreeHtml = cmp_rel_render_left_tree_html($id, $tituloReg);
-    $rightPanelHtml = cmp_rel_render_right_panel_html($id, $tituloRegOptions, $tituloReg, $view, '', $otrosSys, $otrosTitulo, $view);
+    if ($id > 0) {
+        $import = cmp_rel_get_import($id);
+        if (!$import) {
+            throw new RuntimeException('La importación no existe.');
+        }
+
+        $tituloRegOptions = cmp_rel_get_tituloreg_options();
+        $leftTreeHtml = cmp_rel_render_left_tree_html($id, $tituloReg);
+        $rightPanelHtml = cmp_rel_render_right_panel_html($id, $tituloRegOptions, $tituloReg, $view, '', $otrosSys, $otrosTitulo, $view);
+    }
 } catch (Throwable $e) {
     $error = $e->getMessage();
 }
@@ -96,6 +110,30 @@ main.container-fluid{width:calc(100% - 16px);margin:12px 8px 16px;padding:0;flex
   display:flex;
   gap:8px;
   flex-wrap:nowrap;
+}
+
+.cmp-rel-import-picker{
+  background:#fff;
+  border:1px solid #d9dde4;
+  border-radius:14px;
+  padding:12px;
+}
+
+.cmp-rel-import-picker-row{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.cmp-rel-import-picker-row select{
+  min-width:320px;
+  max-width:100%;
+  padding:6px 8px;
+  border:1px solid #c8d0da;
+  border-radius:8px;
+  min-height:34px;
+  background:#fff;
 }
 
 .cmp-rel-wrap{
@@ -625,59 +663,83 @@ main.container-fluid{width:calc(100% - 16px);margin:12px 8px 16px;padding:0;flex
     <div class="cmp-rel-topbar-left">
       <h1>Relación de sobres</h1>
       <div class="cmp-rel-meta">
-        <span>Importación #<?= (int)$id ?></span>
-        <?php if ($import): ?><span><?= cmp_h((string)($import['nombre'] ?? '')) ?></span><?php endif; ?>
+        <?php if ($import): ?>
+          <span>Importación #<?= (int)$id ?></span>
+          <span><?= cmp_h((string)($import['nombre'] ?? '')) ?></span>
+        <?php else: ?>
+          <span>Seleccionar campeonato</span>
+        <?php endif; ?>
       </div>
     </div>
     <div class="cmp-rel-actions">
-      <a class="cmp-btn" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>">Volver</a>
-      <button type="button" class="cmp-btn" id="cmpRelRefreshAll">Refrescar</button>
+      <?php if ($import): ?>
+        <a class="cmp-btn" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>">Volver</a>
+        <button type="button" class="cmp-btn" id="cmpRelRefreshAll">Refrescar</button>
+      <?php else: ?>
+        <a class="cmp-btn" href="campeonatos_importaciones.php">Volver</a>
+      <?php endif; ?>
     </div>
   </div>
 
   <?php if ($message !== ''): ?><div class="cmp-alert cmp-alert-success"><?= cmp_h($message) ?></div><?php endif; ?>
   <?php if ($error !== ''): ?><div class="cmp-alert cmp-alert-error"><?= cmp_h($error) ?></div><?php endif; ?>
 
-  <div class="cmp-rel-wrap" id="workspace">
-    <section class="cmp-rel-panel">
-      <div class="cmp-rel-panel-head">
-        <div class="cmp-rel-panel-title"><h3>Partidos del campeonato</h3></div>
-        <div class="cmp-rel-toolbar">
-          <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelLeftTeamA" placeholder="Equipo A"></div>
-          <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelLeftTeamB" placeholder="Equipo B"></div>
-          <label class="cmp-rel-inline-check"><input type="checkbox" id="cmpRelOnlyEmpty"> Solo sin sobres</label>
-        </div>
+    <?php if (!$import): ?>
+    <section class="cmp-rel-import-picker">
+      <div class="cmp-rel-import-picker-row">
+        <label for="cmpRelImportSelect"><strong>Campeonato:</strong></label>
+        <select id="cmpRelImportSelect">
+          <option value="">Seleccionar…</option>
+          <?php foreach ($activeImports as $row): ?>
+            <option value="<?= (int)$row['id'] ?>"><?= cmp_h((string)$row['titulo_fuente']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <span class="cmp-rel-muted">Al elegir uno se abre el relacionador para esa importación.</span>
       </div>
-      <div class="cmp-rel-tree-wrap" id="cmpRelLeftTree"><?= $leftTreeHtml ?></div>
     </section>
+  <?php else: ?>
+    <div class="cmp-rel-wrap" id="workspace">
+      <section class="cmp-rel-panel">
+        <div class="cmp-rel-panel-head">
+          <div class="cmp-rel-panel-title"><h3>Partidos del campeonato</h3></div>
+          <div class="cmp-rel-toolbar">
+            <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelLeftTeamA" placeholder="Equipo A"></div>
+            <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelLeftTeamB" placeholder="Equipo B"></div>
+            <label class="cmp-rel-inline-check"><input type="checkbox" id="cmpRelOnlyEmpty"> Solo sin sobres</label>
+          </div>
+        </div>
+        <div class="cmp-rel-tree-wrap" id="cmpRelLeftTree"><?= $leftTreeHtml ?></div>
+      </section>
 
-    <section class="cmp-rel-panel" id="cmpRelRightPanel">
-      <div class="cmp-rel-panel-head">
-        <div class="cmp-rel-panel-title"><h3>Sobres del campeonato</h3></div>
-        <div class="cmp-rel-toolbar cmp-rel-toolbar-rightline">
-          <div class="cmp-field">
-            <select id="tituloReg" name="tituloReg">
-              <option value="">Seleccionar…</option>
-              <?php foreach ($tituloRegOptions as $opt): ?>
-                <option value="<?= cmp_h($opt) ?>" <?= $tituloReg === $opt ? 'selected' : '' ?>><?= cmp_h($opt) ?></option>
-              <?php endforeach; ?>
-              <option value="__otros__" <?= $tituloReg === '__otros__' ? 'selected' : '' ?>>Otros…</option>
-            </select>
+      <section class="cmp-rel-panel" id="cmpRelRightPanel">
+        <div class="cmp-rel-panel-head">
+          <div class="cmp-rel-panel-title"><h3>Sobres del campeonato</h3></div>
+          <div class="cmp-rel-toolbar cmp-rel-toolbar-rightline">
+            <div class="cmp-field">
+              <select id="tituloReg" name="tituloReg">
+                <option value="">Seleccionar…</option>
+                <?php foreach ($tituloRegOptions as $opt): ?>
+                  <option value="<?= cmp_h($opt) ?>" <?= $tituloReg === $opt ? 'selected' : '' ?>><?= cmp_h($opt) ?></option>
+                <?php endforeach; ?>
+                <option value="__otros__" <?= $tituloReg === '__otros__' ? 'selected' : '' ?>>Otros…</option>
+              </select>
+            </div>
+            <div class="cmp-field">
+              <select id="view" name="view">
+                <option value="pending" <?= $view === 'pending' ? 'selected' : '' ?>>Pendientes</option>
+                <option value="loaded" <?= $view === 'loaded' || $view === 'assigned' ? 'selected' : '' ?>>Cargados</option>
+                <option value="all" <?= $view === 'all' ? 'selected' : '' ?>>Todos</option>
+              </select>
+            </div>
+            <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelRightTeamA" placeholder="Equipo A"></div>
+            <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelRightTeamB" placeholder="Equipo B"></div>
           </div>
-          <div class="cmp-field">
-            <select id="view" name="view">
-              <option value="pending" <?= $view === 'pending' ? 'selected' : '' ?>>Pendientes</option>
-              <option value="loaded" <?= $view === 'loaded' || $view === 'assigned' ? 'selected' : '' ?>>Cargados</option>
-              <option value="all" <?= $view === 'all' ? 'selected' : '' ?>>Todos</option>
-            </select>
-          </div>
-          <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelRightTeamA" placeholder="Equipo A"></div>
-          <div class="cmp-field cmp-field-grow"><input type="text" id="cmpRelRightTeamB" placeholder="Equipo B"></div>
         </div>
-      </div>
-      <div class="cmp-rel-panel-body" id="cmpRelRightPanelBody"><?= $rightPanelHtml ?></div>
-    </section>
-  </div>
+        <div class="cmp-rel-panel-body" id="cmpRelRightPanelBody"><?= $rightPanelHtml ?></div>
+      </section>
+    </div>
+  <?php endif; ?>
+</div>
 </div>
 
 <div class="cmp-rel-modal-backdrop" id="cmpRelOtrosBackdrop">
@@ -699,6 +761,16 @@ main.container-fluid{width:calc(100% - 16px);margin:12px 8px 16px;padding:0;flex
   const page = document.getElementById('cmpRelPage');
   if (!page) return;
   const importId = page.dataset.importId;
+  const importSelect = document.getElementById('cmpRelImportSelect');
+
+  if (importSelect) {
+    importSelect.addEventListener('change', () => {
+      const selectedId = importSelect.value || '';
+      if (!selectedId) return;
+      window.location.href = 'campeonatos_relacion_sobres.php?id=' + encodeURIComponent(selectedId);
+    });
+  }
+
   let selectedBarcode = null;
   let rightRefreshTimer = null;
   let leftFilterTimer = null;

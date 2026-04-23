@@ -47,7 +47,7 @@ $menuPages = [
       <!-- Secciones -->
       <div class="nav__head">Secciones</div>
       <a class="nav__drop<?= nav_active_any(['campeonatos.php','equipos.php','resultados.php'], $path) ?>" href="<?= $base ?>/futbol.php">Fútbol</a>
-        <a href="<?= BASE_URL ?>/fotografos.php">Fotógrafos</a>
+        <a  class="nav__drop" href="<?= BASE_URL ?>/fotografos.php">Fotógrafos</a>
       <!-- Próximas secciones (placeholder) -->
       <a class="nav__drop is-disabled" href="#" aria-disabled="true">Boxeo</a>
       <a class="nav__drop is-disabled" href="#" aria-disabled="true">Turf</a>

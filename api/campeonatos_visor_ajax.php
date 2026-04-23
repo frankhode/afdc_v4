@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-
+require_once __DIR__ . '/../inc/campeonatos_sin_identificar_repo.php';
 require_once __DIR__ . '/../inc/bootstrap.php';
 require_once __DIR__ . '/../inc/campeonatos_visor_repo.php';
 
@@ -56,6 +56,66 @@ try {
                 $filters['team2'],
                 $filters['only_linked'] === '1'
             ),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($action === 'backfill_entities') {
+        $importId = (int)$filters['id'];
+        $stats = cmp_ent_backfill_all_matches($importId > 0 ? $importId : null);
+
+        echo json_encode([
+            'ok' => true,
+            'stats' => $stats,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+        if ($action === 'move_targets') {
+        $importId = (int)($filters['id'] ?? 0);
+        if ($importId <= 0 || !cmp_si_is_import($importId)) {
+            throw new InvalidArgumentException('La importación actual no es Sin identificar.');
+        }
+
+        $imports = cmp_si_list_destination_imports();
+
+        echo json_encode([
+            'ok' => true,
+            'imports' => $imports,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($action === 'move_nodes') {
+        $importId = (int)($_POST['target_import_id'] ?? $_GET['target_import_id'] ?? 0);
+        if ($importId <= 0) {
+            throw new InvalidArgumentException('Falta campeonato destino.');
+        }
+
+        $nodes = cmp_si_list_destination_nodes($importId);
+
+        echo json_encode([
+            'ok' => true,
+            'nodes' => $nodes,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($action === 'move_match') {
+        $currentImportId = (int)($filters['id'] ?? 0);
+        $matchId = (int)($_POST['match_id'] ?? $_GET['match_id'] ?? 0);
+        $targetImportId = (int)($_POST['target_import_id'] ?? $_GET['target_import_id'] ?? 0);
+        $targetNodeId = (int)($_POST['target_node_id'] ?? $_GET['target_node_id'] ?? 0);
+
+        if ($currentImportId <= 0 || !cmp_si_is_import($currentImportId)) {
+            throw new InvalidArgumentException('La importación actual no es Sin identificar.');
+        }
+
+        cmp_si_move_match_to_import_node($matchId, $targetImportId, $targetNodeId);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Partido movido al campeonato destino.',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }

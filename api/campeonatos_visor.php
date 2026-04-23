@@ -472,6 +472,7 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
       rightPanel.outerHTML = json.detail_html || '<section class="cmp-visor-panel"><div class="cmp-empty">Sin contenido.</div></section>';
       bindNodeSelectionState(nodeId);
       bindOnlyLinkedFilter();
+      bindMoveMatchButtons();
     } catch (err) {
       rightPanel.innerHTML = '<div class="cmp-alert cmp-alert-error">' + (err && err.message ? err.message : 'Error cargando el nodo.') + '</div>';
     }
@@ -592,6 +593,128 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
     bindNodeLinks();
     bindStageAnchors();
     bindOnlyLinkedFilter();
+    bindMoveMatchButtons();
+  }
+
+    function bindMoveMatchButtons() {
+    document.querySelectorAll('[data-move-match]').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+
+      btn.addEventListener('click', async () => {
+        const matchId = btn.getAttribute('data-move-match');
+        const box = document.getElementById('cmpMoveBox' + matchId);
+        if (!box) return;
+
+        box.classList.toggle('cmp-rel-hidden');
+        if (box.dataset.loaded === '1') return;
+
+        const json = await postAjax({
+          action: 'move_targets',
+          id: String(selectedImportId)
+        });
+
+        const selectImport = box.querySelector('[data-move-import="' + matchId + '"]');
+        const status = box.querySelector('[data-move-status="' + matchId + '"]');
+
+        if (!json.ok) {
+          status.textContent = json.error || 'Error cargando campeonatos.';
+          status.style.color = '#b91c1c';
+          return;
+        }
+
+        const imports = Array.isArray(json.imports) ? json.imports : [];
+        selectImport.innerHTML = '<option value="">Seleccionar…</option>' + imports.map(row => {
+          const season = row.temporada_detectada ? ' (' + row.temporada_detectada + ')' : '';
+          return '<option value="' + row.id + '">' + String(row.titulo_fuente || '') + season + '</option>';
+        }).join('');
+
+        box.dataset.loaded = '1';
+      });
+    });
+
+    document.querySelectorAll('[data-move-import]').forEach(select => {
+      if (select.dataset.bound === '1') return;
+      select.dataset.bound = '1';
+
+      select.addEventListener('change', async () => {
+        const matchId = select.getAttribute('data-move-import');
+        const targetImportId = select.value;
+        const box = document.getElementById('cmpMoveBox' + matchId);
+        if (!box) return;
+
+        const nodeSelect = box.querySelector('[data-move-node="' + matchId + '"]');
+        const status = box.querySelector('[data-move-status="' + matchId + '"]');
+        nodeSelect.innerHTML = '<option value="">Cargando…</option>';
+
+        if (!targetImportId) {
+          nodeSelect.innerHTML = '<option value="">Seleccionar…</option>';
+          return;
+        }
+
+        const json = await postAjax({
+          action: 'move_nodes',
+          target_import_id: targetImportId
+        });
+
+        if (!json.ok) {
+          nodeSelect.innerHTML = '<option value="">Seleccionar…</option>';
+          status.textContent = json.error || 'Error cargando nodos.';
+          status.style.color = '#b91c1c';
+          return;
+        }
+
+        const nodes = Array.isArray(json.nodes) ? json.nodes : [];
+        nodeSelect.innerHTML = '<option value="">Seleccionar…</option>' + nodes.map(row => {
+          return '<option value="' + row.id + '">' + String(row.label || '') + '</option>';
+        }).join('');
+      });
+    });
+
+    document.querySelectorAll('[data-move-confirm]').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+
+      btn.addEventListener('click', async () => {
+        const matchId = btn.getAttribute('data-move-confirm');
+        const box = document.getElementById('cmpMoveBox' + matchId);
+        if (!box) return;
+
+        const importSelect = box.querySelector('[data-move-import="' + matchId + '"]');
+        const nodeSelect = box.querySelector('[data-move-node="' + matchId + '"]');
+        const status = box.querySelector('[data-move-status="' + matchId + '"]');
+
+        if (!importSelect.value || !nodeSelect.value) {
+          status.textContent = 'Elegí campeonato y fecha destino.';
+          status.style.color = '#b91c1c';
+          return;
+        }
+
+        status.textContent = 'Moviendo…';
+        status.style.color = '';
+
+        const json = await postAjax({
+          action: 'move_match',
+          id: String(selectedImportId),
+          match_id: String(matchId),
+          target_import_id: String(importSelect.value),
+          target_node_id: String(nodeSelect.value)
+        });
+
+        if (!json.ok) {
+          status.textContent = json.error || 'Error moviendo el partido.';
+          status.style.color = '#b91c1c';
+          return;
+        }
+
+        status.textContent = json.message || 'Partido movido.';
+        status.style.color = '#0f766e';
+
+        setTimeout(() => {
+          loadChampionship(selectedImportId);
+        }, 500);
+      });
+    });
   }
 
   yearInput.addEventListener('change', loadChampionships);

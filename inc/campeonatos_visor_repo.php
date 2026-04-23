@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
-
+require_once __DIR__ . '/campeonatos_sin_identificar_repo.php';
 require_once __DIR__ . '/campeonatos_helpers.php';
 cmp_require_bootstrap_if_available();
 
 require_once __DIR__ . '/campeonatos_import_edit_repo.php';
 require_once __DIR__ . '/campeonatos_relacion_sobres_repo.php';
+require_once __DIR__ . '/campeonatos_entidades_repo.php';
 
 function cmp_visor_db(): mysqli {
     return cmp_db();
@@ -27,7 +28,7 @@ function cmp_visor_filters_from_request(): array {
 }
 
 function cmp_visor_normalize_text(string $text): string {
-    return cmp_edit_normalize_team_name($text);
+    return cmp_ent_normalize_name($text);
 }
 
 function cmp_visor_list_years(): array {
@@ -57,38 +58,15 @@ function cmp_visor_list_years(): array {
 }
 
 function cmp_visor_list_teams(): array {
-    $db = cmp_visor_db();
-
-    $sql = "
-        SELECT nombre
-        FROM (
-            SELECT TRIM(COALESCE(local_texto, '')) AS nombre
-            FROM cmp_importacion_partidos
-            WHERE COALESCE(estado,'activo') <> 'ignorado'
-
-            UNION
-
-            SELECT TRIM(COALESCE(visitante_texto, '')) AS nombre
-            FROM cmp_importacion_partidos
-            WHERE COALESCE(estado,'activo') <> 'ignorado'
-        ) t
-        WHERE nombre <> ''
-        ORDER BY nombre ASC
-    ";
-
-    $res = $db->query($sql);
-    if (!$res) {
-        throw new RuntimeException($db->error);
-    }
-
+    $entities = cmp_ent_list_used_in_matches(null);
     $rows = [];
-    while ($row = $res->fetch_assoc()) {
-        $name = trim((string)($row['nombre'] ?? ''));
+
+    foreach ($entities as $entity) {
+        $name = trim((string)($entity['nombre_mostrable'] ?? ''));
         if ($name !== '') {
             $rows[] = $name;
         }
     }
-    $res->free();
 
     return $rows;
 }
@@ -115,20 +93,42 @@ function cmp_visor_list_imports(array $filters): array {
     }
 
     if ($filters['team1'] !== '') {
-        $like = '%' . $filters['team1'] . '%';
-        $where[] = "EXISTS (
-            SELECT 1
-            FROM cmp_importacion_partidos p
-            WHERE p.importacion_id = i.id
-              AND COALESCE(p.estado,'activo') <> 'ignorado'
-              AND (
-                    p.local_texto LIKE ?
-                 OR p.visitante_texto LIKE ?
-              )
-        )";
-        $types .= 'ss';
-        $params[] = $like;
-        $params[] = $like;
+        $resolved = cmp_ent_resolve_name($filters['team1']);
+        if ($resolved) {
+            $entityId = (int)$resolved['id'];
+            $where[] = "EXISTS (
+                SELECT 1
+                FROM cmp_importacion_partidos p
+                WHERE p.importacion_id = i.id
+                  AND COALESCE(p.estado,'activo') <> 'ignorado'
+                  AND (
+                        p.local_entidad_id = ?
+                     OR p.visitante_entidad_id = ?
+                  )
+            )";
+            $types .= 'ii';
+            $params[] = $entityId;
+            $params[] = $entityId;
+        } else {
+            $likeNorm = '%' . cmp_ent_normalize_name($filters['team1']) . '%';
+            $where[] = "EXISTS (
+                SELECT 1
+                FROM cmp_importacion_partidos p
+                WHERE p.importacion_id = i.id
+                  AND COALESCE(p.estado,'activo') <> 'ignorado'
+                  AND (
+                        COALESCE(NULLIF(p.local_normalizado,''), '') LIKE ?
+                     OR COALESCE(NULLIF(p.visitante_normalizado,''), '') LIKE ?
+                     OR LOWER(TRIM(COALESCE(p.local_texto, ''))) LIKE ?
+                     OR LOWER(TRIM(COALESCE(p.visitante_texto, ''))) LIKE ?
+                  )
+            )";
+            $types .= 'ssss';
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
+        }
     }
 
     $sql = "
@@ -175,20 +175,15 @@ function cmp_visor_match_visible(array $match, string $team1, string $team2): bo
         return false;
     }
 
-    $home = cmp_visor_normalize_text((string)($match['local_texto'] ?? ''));
-    $away = cmp_visor_normalize_text((string)($match['visitante_texto'] ?? ''));
-
     $ok1 = true;
     $ok2 = true;
 
     if ($team1 !== '') {
-        $f1 = cmp_visor_normalize_text($team1);
-        $ok1 = str_contains($home, $f1) || str_contains($away, $f1);
+        $ok1 = cmp_ent_match_team_filter($match, $team1);
     }
 
     if ($team2 !== '') {
-        $f2 = cmp_visor_normalize_text($team2);
-        $ok2 = str_contains($home, $f2) || str_contains($away, $f2);
+        $ok2 = cmp_ent_match_team_filter($match, $team2);
     }
 
     return $ok1 && $ok2;
@@ -533,7 +528,7 @@ function cmp_visor_render_node_detail_html(array $tree, int $nodeId, string $tea
     echo '<div class="cmp-visor-match-list">';
     cmp_visor_render_grouped_matches($rows);
     echo '</div>';
-
+    
     echo '</section>';
 
     return (string)ob_get_clean();
@@ -598,6 +593,13 @@ function cmp_visor_render_grouped_matches(array $rows): void {
     }
 
     $currentGroupKey = null;
+    $isSinIdentificar = false;
+
+    if (!empty($_GET['id'])) {
+        $isSinIdentificar = cmp_si_is_import((int)$_GET['id']);
+    } elseif (!empty($_POST['id'])) {
+        $isSinIdentificar = cmp_si_is_import((int)$_POST['id']);
+    }
 
     foreach ($rows as $row) {
         $groupPath = $row['group_path'] ?? [];
@@ -620,6 +622,8 @@ function cmp_visor_render_grouped_matches(array $rows): void {
             $currentGroupKey = $groupKey;
         }
 
+        $matchId = (int)($match['id'] ?? 0);
+
         echo '<article class="cmp-visor-match-card">';
         echo '  <div class="cmp-visor-match-line">';
         echo '      <strong>' . cmp_visor_h((string)$match['local_texto']) . '</strong>';
@@ -627,9 +631,29 @@ function cmp_visor_render_grouped_matches(array $rows): void {
         echo '      <strong>' . cmp_visor_h((string)$match['visitante_texto']) . '</strong>';
         echo '  </div>';
 
+        echo '  <div class="cmp-visor-match-meta" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">';
         if (count($assignedLinks) > 0) {
-            echo '  <div class="cmp-visor-match-meta">';
             echo '      <span class="cmp-visor-match-has-links">Con sobres vinculados</span>';
+        }
+        if ($isSinIdentificar && $matchId > 0) {
+            echo '      <button type="button" class="cmp-btn cmp-btn-sm" data-move-match="' . $matchId . '">Mover a campeonato</button>';
+        }
+        echo '  </div>';
+
+        if ($isSinIdentificar && $matchId > 0) {
+            echo '  <div class="cmp-visor-move-box cmp-rel-hidden" id="cmpMoveBox' . $matchId . '" style="margin:10px 0; padding:10px; border:1px solid #d9dde4; border-radius:10px; background:#fafbfd;">';
+            echo '      <div style="display:grid; gap:8px; grid-template-columns:1fr 1fr auto; align-items:end;">';
+            echo '          <label style="display:grid; gap:4px;">';
+            echo '              <span>Campeonato</span>';
+            echo '              <select data-move-import="' . $matchId . '"><option value="">Seleccionar…</option></select>';
+            echo '          </label>';
+            echo '          <label style="display:grid; gap:4px;">';
+            echo '              <span>Fecha destino</span>';
+            echo '              <select data-move-node="' . $matchId . '"><option value="">Seleccionar…</option></select>';
+            echo '          </label>';
+            echo '          <button type="button" class="cmp-btn cmp-btn-sm" data-move-confirm="' . $matchId . '">Confirmar</button>';
+            echo '      </div>';
+            echo '      <div data-move-status="' . $matchId . '" style="margin-top:8px; font-size:13px;"></div>';
             echo '  </div>';
         }
 

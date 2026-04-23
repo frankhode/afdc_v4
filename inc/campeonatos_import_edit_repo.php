@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/campeonatos_helpers.php';
 require_once __DIR__ . '/campeonatos_import_repo.php';
+require_once __DIR__ . '/campeonatos_entidades_repo.php';
 
 cmp_require_bootstrap_if_available();
 
@@ -628,15 +629,48 @@ function cmp_edit_update_match(int $matchId, string $home, ?int $gl, ?int $gv, s
     if ($home === '' || $away === '') {
         throw new InvalidArgumentException('Local y visitante son obligatorios.');
     }
+
+    $localNorm = cmp_ent_normalize_name($home);
+    $visitNorm = cmp_ent_normalize_name($away);
+
+    $localEntity = cmp_ent_resolve_name($home);
+    $visitEntity = cmp_ent_resolve_name($away);
+
+    $localEntityId = $localEntity ? (int)$localEntity['id'] : null;
+    $visitEntityId = $visitEntity ? (int)$visitEntity['id'] : null;
+
     $db = cmp_edit_db();
     $sql = 'UPDATE cmp_importacion_partidos
-            SET local_texto = ?, goles_local = ?, goles_visitante = ?, visitante_texto = ?, observacion_manual = ?, is_manual_edit = 1, actualizado_en = NOW()
+            SET local_texto = ?,
+                local_entidad_id = ?,
+                local_normalizado = ?,
+                goles_local = ?,
+                goles_visitante = ?,
+                visitante_texto = ?,
+                visitante_entidad_id = ?,
+                visitante_normalizado = ?,
+                observacion_manual = ?,
+                is_manual_edit = 1,
+                actualizado_en = NOW()
             WHERE id = ?';
     $stmt = $db->prepare($sql);
     if (!$stmt) {
         throw new RuntimeException($db->error);
     }
-    $stmt->bind_param('siissi', $home, $gl, $gv, $away, $obs, $matchId);
+
+    $stmt->bind_param(
+        'sisississi',
+        $home,
+        $localEntityId,
+        $localNorm,
+        $gl,
+        $gv,
+        $away,
+        $visitEntityId,
+        $visitNorm,
+        $obs,
+        $matchId
+    );
     $stmt->execute();
     $stmt->close();
 }
