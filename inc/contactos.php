@@ -975,3 +975,427 @@ function afdc_contactos_preparar_ruta_local(string $ruta): string
     $reparada = afdc_contactos_reparar_mojibake_utf8($ruta);
     return afdc_contactos_normalizar_ruta_windows($reparada);
 }
+
+function afdc_contactos_materia_campo_valido(string $campo): string
+{
+    $campo = trim($campo);
+    $validos = ['todos', '600', '610', '611', '630', '650', '651'];
+
+    return in_array($campo, $validos, true) ? $campo : 'todos';
+}
+
+function afdc_contactos_buscar_sobres_por_materia(string $texto, string $campo = 'todos', bool $exacta = false): array
+{
+    $texto = trim($texto);
+    if ($texto === '') {
+        throw new RuntimeException('No se recibió texto de materia');
+    }
+
+    $campo = afdc_contactos_materia_campo_valido($campo);
+
+    $where = [];
+    $types = '';
+    $params = [];
+
+    if ($exacta) {
+        $where[] = 'm.materia = ?';
+        $types .= 's';
+        $params[] = $texto;
+    } else {
+        $where[] = 'm.materia LIKE ?';
+        $types .= 's';
+        $params[] = '%' . $texto . '%';
+    }
+
+    if ($campo !== 'todos') {
+        $where[] = 'm.campo = ?';
+        $types .= 's';
+        $params[] = $campo;
+    }
+
+    $whereSql = implode(' AND ', $where);
+
+    $sql = "
+        SELECT
+            x.barcode,
+            x.titulo,
+            COUNT(d.nombramiento) AS imagenes
+        FROM (
+            SELECT
+                t.barcode,
+                MIN(t.titulo) AS titulo
+            FROM materias m
+            INNER JOIN titulos t ON t.sys = m.sys
+            WHERE {$whereSql}
+              AND COALESCE(t.barcode, '') <> ''
+            GROUP BY t.barcode
+        ) x
+        LEFT JOIN digitales d
+               ON d.inv = x.barcode
+              AND (d.carpeta = 'Bajas' OR d.carpeta LIKE '%Bajas%')
+        GROUP BY x.barcode, x.titulo
+        HAVING imagenes > 0
+        ORDER BY x.barcode ASC
+    ";
+
+    $rows = q($sql, $types, $params);
+
+    $out = [];
+    foreach ($rows as $r) {
+        $barcode = trim((string)($r['barcode'] ?? ''));
+        if ($barcode === '') {
+            continue;
+        }
+
+        $out[] = [
+            'barcode'  => $barcode,
+            'titulo'   => (string)($r['titulo'] ?? ''),
+            'imagenes' => (int)($r['imagenes'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+function afdc_contactos_estimar_lotes_por_imagenes(array $sobres, int $maxImagenesPorPdf): array
+{
+    $maxImagenesPorPdf = max(1, $maxImagenesPorPdf);
+
+    $totalSobres = 0;
+    $totalImagenes = 0;
+    $pdfs = 0;
+
+    $actualSobres = 0;
+    $actualImagenes = 0;
+
+    foreach ($sobres as $sobre) {
+        $imagenes = max(0, (int)($sobre['imagenes'] ?? 0));
+        if ($imagenes <= 0) {
+            continue;
+        }
+
+        $totalSobres++;
+        $totalImagenes += $imagenes;
+
+        if ($actualSobres > 0 && ($actualImagenes + $imagenes) > $maxImagenesPorPdf) {
+            $pdfs++;
+            $actualSobres = 0;
+            $actualImagenes = 0;
+        }
+
+        $actualSobres++;
+        $actualImagenes += $imagenes;
+    }
+
+    if ($actualSobres > 0) {
+        $pdfs++;
+    }
+
+    return [
+        'sobres'   => $totalSobres,
+        'imagenes' => $totalImagenes,
+        'pdfs'     => $pdfs,
+    ];
+}
+
+function afdc_contactos_jobs_dir(): string
+{
+    $dir = __DIR__ . '/../tmp/contactos_jobs';
+
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+
+    return $dir;
+}
+
+function afdc_contactos_job_id(): string
+{
+    return bin2hex(random_bytes(12));
+}
+
+function afdc_contactos_job_file(string $jobId): string
+{
+    if (!preg_match('/^[a-f0-9]{24}$/', $jobId)) {
+        throw new RuntimeException('ID de tarea inválido');
+    }
+
+    return afdc_contactos_jobs_dir() . '/' . $jobId . '.json';
+}
+
+function afdc_contactos_job_write(string $jobId, array $data): void
+{
+    $data['job_id'] = $jobId;
+    $data['updated_at'] = date('c');
+
+    $file = afdc_contactos_job_file($jobId);
+
+    @file_put_contents(
+        $file,
+        json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+    );
+}
+
+function afdc_contactos_job_read(string $jobId): array
+{
+    $file = afdc_contactos_job_file($jobId);
+
+    if (!is_file($file)) {
+        throw new RuntimeException('No se encontró la tarea');
+    }
+
+    $json = @file_get_contents($file);
+    $data = json_decode((string)$json, true);
+
+    if (!is_array($data)) {
+        throw new RuntimeException('Estado de tarea inválido');
+    }
+
+    return $data;
+}
+
+function afdc_contactos_jobs_cleanup_old(int $maxAgeHours = 24): void
+{
+    $dir = afdc_contactos_jobs_dir();
+    $limit = time() - ($maxAgeHours * 3600);
+
+    foreach (glob($dir . '/*') ?: [] as $path) {
+        if (@filemtime($path) !== false && (int)@filemtime($path) < $limit) {
+            if (is_dir($path)) {
+                afdc_contactos_rrmdir($path);
+            } else {
+                @unlink($path);
+            }
+        }
+    }
+}
+
+function afdc_contactos_progress_noop(array $state): void
+{
+}
+
+function afdc_contactos_generar_materia_loteada(
+    array $sobres,
+    int $maxImagenesPorPdf,
+    string $label,
+    ?callable $progress = null
+): array {
+    if (!$sobres) {
+        throw new RuntimeException('La búsqueda no devolvió sobres con imágenes');
+    }
+
+    $progress = $progress ?: 'afdc_contactos_progress_noop';
+    $maxImagenesPorPdf = max(1, $maxImagenesPorPdf);
+
+    $tempDir = afdc_contactos_temp_dir();
+    $cleanup = [$tempDir];
+    $warnings = [];
+
+    $labelSlug = afdc_contactos_slug($label);
+    $stamp = date('Ymd_His');
+
+    $progress([
+        'status' => 'running',
+        'percent' => 5,
+        'message' => 'Preparando sobres e imágenes...',
+    ]);
+
+    afdc_contactos_debug('Generar materia loteada | sobres estimados: ' . count($sobres) . ' | máximo imágenes PDF: ' . $maxImagenesPorPdf);
+
+    $resueltos = [];
+    $totalSobresEstimados = count($sobres);
+
+    foreach ($sobres as $idx => $sobre) {
+        $barcode = trim((string)($sobre['barcode'] ?? ''));
+        if ($barcode === '') {
+            continue;
+        }
+
+        $progress([
+            'status' => 'running',
+            'percent' => 5 + (int)floor((($idx + 1) / max(1, $totalSobresEstimados)) * 15),
+            'message' => 'Revisando imágenes del sobre ' . ($idx + 1) . '/' . $totalSobresEstimados . ': ' . $barcode,
+            'current_barcode' => $barcode,
+        ]);
+
+        $items = afdc_contactos_resolver_imagenes_por_barcode($barcode);
+        $cantidad = count($items);
+
+        if ($cantidad <= 0) {
+            $warnings[] = '[' . $barcode . '] Sin imágenes en Bajas';
+            continue;
+        }
+
+        $resueltos[] = [
+            'barcode'  => $barcode,
+            'items'    => $items,
+            'imagenes' => $cantidad,
+        ];
+    }
+
+    if (!$resueltos) {
+        afdc_contactos_rrmdir($tempDir);
+        throw new RuntimeException('No se encontró ningún sobre con imágenes disponibles');
+    }
+
+    $progress([
+        'status' => 'running',
+        'percent' => 22,
+        'message' => 'Agrupando sobres en PDFs sin partir sobres...',
+        'sobres_procesables' => count($resueltos),
+    ]);
+
+    $lotes = [];
+    $actual = [];
+    $actualImagenes = 0;
+
+    foreach ($resueltos as $sobre) {
+        $imagenes = (int)$sobre['imagenes'];
+
+        if ($actual && ($actualImagenes + $imagenes) > $maxImagenesPorPdf) {
+            $lotes[] = [
+                'sobres'   => $actual,
+                'imagenes' => $actualImagenes,
+            ];
+            $actual = [];
+            $actualImagenes = 0;
+        }
+
+        $actual[] = $sobre;
+        $actualImagenes += $imagenes;
+    }
+
+    if ($actual) {
+        $lotes[] = [
+            'sobres'   => $actual,
+            'imagenes' => $actualImagenes,
+        ];
+    }
+
+    $pdfEntries = [];
+    $totalLotes = count($lotes);
+    $totalSobres = count($resueltos);
+    $sobreGlobal = 0;
+
+    $progress([
+        'status' => 'running',
+        'percent' => 25,
+        'message' => 'Se generarán ' . $totalLotes . ' PDF(s).',
+        'pdfs_total' => $totalLotes,
+        'sobres_total' => $totalSobres,
+    ]);
+
+    foreach ($lotes as $idx => $lote) {
+        $parte = $idx + 1;
+        $jpegPages = [];
+
+        afdc_contactos_debug('Render lote materia parte ' . $parte . ' | sobres: ' . count($lote['sobres']) . ' | imágenes: ' . $lote['imagenes']);
+
+        $progress([
+            'status' => 'running',
+            'percent' => 25 + (int)floor(($idx / max(1, $totalLotes)) * 65),
+            'message' => 'Preparando PDF ' . $parte . '/' . $totalLotes . ' (' . $lote['imagenes'] . ' imágenes)...',
+            'pdf_actual' => $parte,
+            'pdfs_total' => $totalLotes,
+        ]);
+
+        foreach ($lote['sobres'] as $sobre) {
+            $sobreGlobal++;
+            $barcode = (string)$sobre['barcode'];
+            $items = (array)$sobre['items'];
+
+            $progress([
+                'status' => 'running',
+                'percent' => 25 + (int)floor(($sobreGlobal / max(1, $totalSobres)) * 55),
+                'message' => 'Generando hoja para sobre ' . $sobreGlobal . '/' . $totalSobres . ': ' . $barcode . ' (' . count($items) . ' imágenes)',
+                'current_barcode' => $barcode,
+                'sobres_done' => $sobreGlobal,
+                'sobres_total' => $totalSobres,
+                'pdf_actual' => $parte,
+                'pdfs_total' => $totalLotes,
+            ]);
+
+            $render = afdc_contactos_render_sheet_pages($barcode, $items, $tempDir, 'light');
+            $pages = $render['pages'] ?? [];
+            $warnings = array_merge($warnings, $render['warnings'] ?? []);
+
+            foreach ($pages as $pagePath) {
+                $jpegPages[] = $pagePath;
+            }
+        }
+
+        if (!$jpegPages) {
+            $warnings[] = '[Parte ' . $parte . '] No se pudieron generar páginas';
+            continue;
+        }
+
+        $pdfName = 'contactos_' . $labelSlug . '_' . str_pad((string)$parte, 3, '0', STR_PAD_LEFT) . '.pdf';
+        $pdfPath = $tempDir . DIRECTORY_SEPARATOR . $pdfName;
+
+        $progress([
+            'status' => 'running',
+            'percent' => 82 + (int)floor(($idx / max(1, $totalLotes)) * 12),
+            'message' => 'Armando PDF ' . $parte . '/' . $totalLotes . '...',
+            'pdf_actual' => $parte,
+            'pdfs_total' => $totalLotes,
+        ]);
+
+        afdc_contactos_build_pdf_from_jpegs($jpegPages, $pdfPath);
+
+        $pdfEntries[] = [
+            'path' => $pdfPath,
+            'name' => $pdfName,
+        ];
+    }
+
+    if (!$pdfEntries) {
+        afdc_contactos_rrmdir($tempDir);
+        throw new RuntimeException('No se pudo generar ningún PDF');
+    }
+
+    $manifest = $tempDir . DIRECTORY_SEPARATOR . 'resumen.txt';
+
+    $lines = [];
+    $lines[] = 'Hojas de contacto por materia';
+    $lines[] = 'Etiqueta: ' . $label;
+    $lines[] = 'Máximo de imágenes por PDF: ' . $maxImagenesPorPdf;
+    $lines[] = 'Sobres procesados: ' . count($resueltos);
+    $lines[] = 'PDFs generados: ' . count($pdfEntries);
+    $lines[] = '';
+    $lines[] = 'Observaciones:';
+    $lines[] = afdc_contactos_manifest_text($warnings);
+
+    file_put_contents($manifest, implode("\n", $lines));
+
+    $progress([
+        'status' => 'running',
+        'percent' => 96,
+        'message' => 'Preparando descarga...',
+    ]);
+
+    if (count($pdfEntries) === 1) {
+        return [
+            'path'         => $pdfEntries[0]['path'],
+            'downloadName' => $pdfEntries[0]['name'],
+            'mime'         => 'application/pdf',
+            'cleanupDirs'  => $cleanup,
+        ];
+    }
+
+    $zipPath = $tempDir . DIRECTORY_SEPARATOR . 'contactos_' . $labelSlug . '_' . $stamp . '.zip';
+
+    $entries = $pdfEntries;
+    $entries[] = [
+        'path' => $manifest,
+        'name' => 'resumen.txt',
+    ];
+
+    afdc_contactos_zip($entries, $zipPath);
+
+    return [
+        'path'         => $zipPath,
+        'downloadName' => 'contactos_' . $labelSlug . '_' . $stamp . '.zip',
+        'mime'         => 'application/zip',
+        'cleanupDirs'  => $cleanup,
+    ];
+}
