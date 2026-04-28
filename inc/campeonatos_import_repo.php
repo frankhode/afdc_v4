@@ -6,15 +6,32 @@ require_once __DIR__ . '/campeonatos_helpers.php';
 function cmp_import_create(array $parsed, string $sourceType, ?string $sourceUrl, string $sourceValue): int {
     $db = cmp_db();
     $db->begin_transaction();
+
     try {
-        $stmt = $db->prepare('INSERT INTO cmp_importaciones (fuente_tipo, fuente_url, titulo_fuente, temporada_detectada, estado, texto_crudo, tree_json, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+        $stmt = $db->prepare('
+            INSERT INTO cmp_importaciones
+            (fuente_tipo, fuente_url, titulo_fuente, temporada_detectada, estado, texto_crudo, tree_json, creado_en, actualizado_en)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        ');
         if (!$stmt) {
             throw new RuntimeException($db->error);
         }
-        $estado = 'parseado';
-        $season = $parsed['season'];
+
+        $estado = (string)($parsed['estado'] ?? 'parseado');
+        $season = (int)($parsed['season'] ?? 0);
         $treeJson = json_encode($parsed['tree'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $stmt->bind_param('sssisss', $sourceType, $sourceUrl, $parsed['title'], $season, $estado, $sourceValue, $treeJson);
+
+        $stmt->bind_param(
+            'sssisss',
+            $sourceType,
+            $sourceUrl,
+            $parsed['title'],
+            $season,
+            $estado,
+            $sourceValue,
+            $treeJson
+        );
+
         $stmt->execute();
         $importId = (int)$stmt->insert_id;
         $stmt->close();
@@ -28,6 +45,104 @@ function cmp_import_create(array $parsed, string $sourceType, ?string $sourceUrl
         $db->rollback();
         throw $e;
     }
+}
+
+function cmp_import_create_special(string $specialType): int {
+    $specialType = trim($specialType);
+
+    $structures = [
+        'sin_identificar' => [
+            'title' => 'Campeonato sin identificar',
+            'season' => 0,
+            'estado' => 'estructura_manual',
+            'tree' => [
+                'type' => 'contenedor',
+                'subtype' => 'sin_identificar',
+                'label' => 'Campeonato sin identificar',
+                'text_original' => null,
+                'meta' => [
+                    'tipo_estructura' => 'sin_identificar',
+                    'es_contenedor_especial' => 1,
+                    'descripcion' => 'Partidos que probablemente pertenecen a un campeonato, pero todavía no fueron identificados.',
+                ],
+                'matches' => [],
+                'children' => [
+                    [
+                        'type' => 'grupo',
+                        'subtype' => 'sin_campeonato',
+                        'label' => 'Sin campeonato identificado',
+                        'text_original' => null,
+                        'meta' => [
+                            'tipo_estructura' => 'sin_identificar',
+                        ],
+                        'matches' => [],
+                        'children' => [],
+                    ],
+                    [
+                        'type' => 'grupo',
+                        'subtype' => 'dudosos',
+                        'label' => 'Dudosos / revisar',
+                        'text_original' => null,
+                        'meta' => [
+                            'tipo_estructura' => 'sin_identificar',
+                        ],
+                        'matches' => [],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ],
+
+        'amistosos' => [
+            'title' => 'Amistosos y partidos sueltos',
+            'season' => 0,
+            'estado' => 'estructura_manual',
+            'tree' => [
+                'type' => 'contenedor',
+                'subtype' => 'amistosos',
+                'label' => 'Amistosos y partidos sueltos',
+                'text_original' => null,
+                'meta' => [
+                    'tipo_estructura' => 'amistosos',
+                    'es_contenedor_especial' => 1,
+                    'descripcion' => 'Partidos amistosos, partidos sueltos y eventos futbolísticos que no dependen de una estructura de campeonato.',
+                ],
+                'matches' => [],
+                'children' => [
+                    [
+                        'type' => 'grupo',
+                        'subtype' => 'sin_anio',
+                        'label' => 'Sin año identificado',
+                        'text_original' => null,
+                        'meta' => [
+                            'tipo_estructura' => 'amistosos',
+                        ],
+                        'matches' => [],
+                        'children' => [],
+                    ],
+                    [
+                        'type' => 'grupo',
+                        'subtype' => 'dudosos',
+                        'label' => 'Dudosos / otros eventos futbolísticos',
+                        'text_original' => null,
+                        'meta' => [
+                            'tipo_estructura' => 'amistosos',
+                        ],
+                        'matches' => [],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ],
+    ];
+
+    if (!isset($structures[$specialType])) {
+        throw new InvalidArgumentException('Tipo de estructura especial inválido.');
+    }
+
+    $parsed = $structures[$specialType];
+
+    return cmp_import_create($parsed, 'especial', null, '');
 }
 
 function cmp_import_store_node(mysqli $db, int $importId, ?int $parentId, array $node, int $level, int &$orderCounter): int {
@@ -82,6 +197,7 @@ function cmp_import_store_node(mysqli $db, int $importId, ?int $parentId, array 
     foreach (($node['matches'] ?? []) as $match) {
         cmp_import_store_match($db, $importId, $nodeId, $match);
     }
+
     foreach (($node['children'] ?? []) as $child) {
         cmp_import_store_node($db, $importId, $nodeId, $child, $level + 1, $orderCounter);
     }
@@ -90,7 +206,11 @@ function cmp_import_store_node(mysqli $db, int $importId, ?int $parentId, array 
 }
 
 function cmp_import_store_match(mysqli $db, int $importId, int $nodeId, array $match): void {
-    $stmt = $db->prepare('INSERT INTO cmp_importacion_partidos (importacion_id, nodo_id, orden, local_texto, visitante_texto, goles_local, goles_visitante, fuente_linea, meta_json, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $stmt = $db->prepare('
+        INSERT INTO cmp_importacion_partidos
+        (importacion_id, nodo_id, orden, local_texto, visitante_texto, goles_local, goles_visitante, fuente_linea, meta_json, creado_en, actualizado_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ');
     if (!$stmt) {
         throw new RuntimeException($db->error);
     }
@@ -129,6 +249,7 @@ function cmp_import_store_match(mysqli $db, int $importId, int $nodeId, array $m
         $match['source_line'],
         $metaJson
     );
+
     $stmt->execute();
     $partidoId = (int)$stmt->insert_id;
     $stmt->close();
@@ -189,7 +310,14 @@ function cmp_import_store_goal_events(mysqli $db, int $importId, int $partidoId,
 
 function cmp_import_list(): array {
     $db = cmp_db();
-    $sql = 'SELECT i.*, (SELECT COUNT(*) FROM cmp_importacion_nodos n WHERE n.importacion_id = i.id) AS nodos_count, (SELECT COUNT(*) FROM cmp_importacion_partidos p WHERE p.importacion_id = i.id) AS partidos_count FROM cmp_importaciones i ORDER BY i.id DESC';
+    $sql = '
+        SELECT
+            i.*,
+            (SELECT COUNT(*) FROM cmp_importacion_nodos n WHERE n.importacion_id = i.id) AS nodos_count,
+            (SELECT COUNT(*) FROM cmp_importacion_partidos p WHERE p.importacion_id = i.id) AS partidos_count
+        FROM cmp_importaciones i
+        ORDER BY i.id DESC
+    ';
     $res = $db->query($sql);
     return $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
 }
@@ -267,12 +395,10 @@ function cmp_import_get_matches(int $importId): array {
             }
         }
 
-        // primero merge del partido
         if ($metaPartido) {
             $row = array_merge($row, $metaPartido);
         }
 
-        // fallback desde nodo si el partido no trae esos datos
         $fallbackKeys = [
             'home_team_raw',
             'home_team_normalized',
@@ -304,37 +430,45 @@ function cmp_import_get_matches(int $importId): array {
 
 function cmp_import_build_tree(array $nodes): array {
     $byId = [];
+
     foreach ($nodes as $node) {
         $node['children'] = [];
         $byId[(int)$node['id']] = $node;
     }
+
     $root = [];
+
     foreach ($byId as $id => &$node) {
         $parentId = $node['parent_id'] !== null ? (int)$node['parent_id'] : null;
+
         if ($parentId !== null && isset($byId[$parentId])) {
             $byId[$parentId]['children'][] = &$node;
         } else {
             $root[] = &$node;
         }
     }
+
     unset($node);
+
     return $root;
 }
 
-
 function cmp_import_get_goal_events(int $importId): array {
     $db = cmp_db();
+
     $sql = '
         SELECT g.*
         FROM cmp_importacion_goles g
         WHERE g.importacion_id = ?
         ORDER BY g.partido_id ASC, g.orden ASC, g.id ASC
     ';
+
     $stmt = $db->prepare($sql);
     $stmt->bind_param('i', $importId);
     $stmt->execute();
     $res = $stmt->get_result();
     $rows = $res->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
     return $rows;
 }

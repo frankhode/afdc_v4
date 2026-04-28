@@ -397,7 +397,27 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
     <?php endif; ?>
   </form>
 
-  <?php if (!$isOtrosMode): ?>
+    <?php if (!$isOtrosMode): ?>
+    <form method="post" action="campeonatos_importacion_accion.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end; margin-top:12px; padding:12px; border:1px solid #d9dde4; border-radius:12px;">
+      <input type="hidden" name="action" value="import_partidos_from_tituloreg">
+      <input type="hidden" name="import_id" value="<?= (int)$id ?>">
+      <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
+      <input type="hidden" name="tituloReg" value="<?= cmp_h($selectedTituloReg) ?>">
+
+      <div>
+        <strong>Importar partidos existentes</strong><br>
+        <small>
+          Toma los partidos ya cargados en <code>partidos</code> para el <code>tituloReg</code> seleccionado
+          y los agrega a esta estructura. Si detecta año, crea/usa el nodo del año.
+        </small>
+      </div>
+
+      <div>
+        <button type="submit" class="cmp-btn cmp-btn-primary" <?= $selectedTituloReg === '' ? 'disabled' : '' ?>>
+          Importar partidos de este tituloReg
+        </button>
+      </div>
+    </form>
     <form method="post" action="campeonatos_importacion_accion.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end; margin-top:12px;">
       <input type="hidden" name="action" value="generate_match_links">
       <input type="hidden" name="import_id" value="<?= (int)$id ?>">

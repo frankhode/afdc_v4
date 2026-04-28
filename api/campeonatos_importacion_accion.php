@@ -160,6 +160,29 @@ try {
             cmp_redirect_back($importId, $nodeId > 0 ? $nodeId : null, 'Partido restaurado.');
             break;
 
+        case 'import_partidos_from_tituloreg':
+            $tituloReg = trim((string)($_POST['tituloReg'] ?? ''));
+
+            if ($tituloReg === '') {
+                throw new InvalidArgumentException('Seleccioná un tituloReg.');
+            }
+
+            $stats = cmp_edit_import_partidos_from_tituloreg($importId, $tituloReg);
+            $targetNodeId = (int)($stats['target_node_id'] ?? $nodeId);
+
+            $msg = sprintf(
+                'Partidos importados desde tituloReg. Leídos: %d · insertados: %d · ya existentes: %d · incompletos omitidos: %d',
+                (int)$stats['leidos'],
+                (int)$stats['insertados'],
+                (int)$stats['omitidos_existentes'],
+                (int)$stats['omitidos_incompletos']
+            );
+
+            cmp_redirect_back($importId, $targetNodeId, $msg, null, [
+                'tituloReg' => $tituloReg,
+            ]);
+            break;
+
         case 'generate_match_links':
             $tituloReg = trim((string)($_POST['tituloReg'] ?? ''));
             $includeDescendants = (int)($_POST['include_descendants'] ?? 1) === 1;

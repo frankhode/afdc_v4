@@ -546,9 +546,10 @@ function cmp_edit_create_node(int $importId, int $parentNodeId, string $type, ?s
 
 function cmp_edit_allowed_child_types(string $parentType): array {
     return match ($parentType) {
+        'contenedor' => ['grupo', 'fecha', 'nota'],
         'ronda' => ['serie', 'fecha', 'nota'],
         'serie' => ['fecha', 'nota'],
-        'fase', 'grupo' => ['fecha', 'nota'],
+        'fase', 'grupo' => ['grupo', 'fecha', 'nota'],
         'fecha' => [],
         default => ['nota'],
     };
@@ -1592,6 +1593,632 @@ function cmp_edit_insert_manual_partidos_for_tituloreg(
 
     $stmtExists->close();
     $stmtInsert->close();
+
+    return $stats;
+}
+
+function cmp_edit_table_columns(string $table): array {
+    $db = cmp_edit_db();
+
+    if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+        throw new InvalidArgumentException('Nombre de tabla inválido.');
+    }
+
+    $res = $db->query('SHOW COLUMNS FROM `' . $table . '`');
+    if (!$res) {
+        throw new RuntimeException('No se pudieron leer columnas de ' . $table . ': ' . $db->error);
+    }
+
+    $cols = [];
+    while ($row = $res->fetch_assoc()) {
+        $field = (string)($row['Field'] ?? '');
+        if ($field !== '') {
+            $cols[$field] = true;
+        }
+    }
+    $res->free();
+
+    return $cols;
+}
+
+function cmp_edit_first_existing_value(array $row, array $keys, string $default = ''): string {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+
+        $value = trim((string)$row[$key]);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return $default;
+}
+
+function cmp_edit_first_existing_int_or_null(array $row, array $keys): ?int {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+
+        $value = trim((string)$row[$key]);
+        if ($value !== '' && is_numeric($value)) {
+            return (int)$value;
+        }
+    }
+
+    return null;
+}
+
+function cmp_edit_extract_year_from_tituloreg(string $tituloReg): ?int {
+    if (preg_match('/\b(19|20)\d{2}\b/u', $tituloReg, $m)) {
+        return (int)$m[0];
+    }
+
+    return null;
+}
+
+function cmp_edit_get_import_root_node(int $importId): ?array {
+    $db = cmp_edit_db();
+
+    $sql = '
+        SELECT *
+        FROM cmp_importacion_nodos
+        WHERE importacion_id = ?
+          AND parent_id IS NULL
+          AND COALESCE(is_deleted,0)=0
+        ORDER BY orden ASC, id ASC
+        LIMIT 1
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $importId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $row;
+}
+
+function cmp_edit_find_child_node_by_label(int $importId, int $parentNodeId, string $label): ?array {
+    $db = cmp_edit_db();
+
+    $sql = '
+        SELECT *
+        FROM cmp_importacion_nodos
+        WHERE importacion_id = ?
+          AND parent_id = ?
+          AND TRIM(label) = ?
+          AND COALESCE(is_deleted,0)=0
+        ORDER BY orden ASC, id ASC
+        LIMIT 1
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('iis', $importId, $parentNodeId, $label);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $row;
+}
+
+function cmp_edit_find_child_node_by_subtype(int $importId, int $parentNodeId, string $subtype): ?array {
+    $db = cmp_edit_db();
+
+    $sql = '
+        SELECT *
+        FROM cmp_importacion_nodos
+        WHERE importacion_id = ?
+          AND parent_id = ?
+          AND TRIM(COALESCE(subtipo, "")) = ?
+          AND COALESCE(is_deleted,0)=0
+        ORDER BY orden ASC, id ASC
+        LIMIT 1
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('iis', $importId, $parentNodeId, $subtype);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $row;
+}
+
+function cmp_edit_create_group_node_direct(
+    int $importId,
+    int $parentNodeId,
+    string $label,
+    ?string $subtype = null,
+    array $meta = []
+): int {
+    $parent = cmp_edit_get_node_row($parentNodeId);
+    if (!$parent || (int)$parent['importacion_id'] !== $importId) {
+        throw new InvalidArgumentException('Nodo padre inválido.');
+    }
+
+    $label = trim($label);
+    if ($label === '') {
+        throw new InvalidArgumentException('El label del nodo no puede estar vacío.');
+    }
+
+    $db = cmp_edit_db();
+
+    $orden = cmp_edit_next_child_order($parentNodeId);
+    $nivel = ((int)$parent['nivel']) + 1;
+    $tipo = 'grupo';
+
+    $meta['created_manually'] = true;
+    $meta['created_by'] = 'import_partidos_tituloreg';
+
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($metaJson === false) {
+        throw new RuntimeException('No se pudo serializar metadata del nodo.');
+    }
+
+    $sql = '
+        INSERT INTO cmp_importacion_nodos
+        (importacion_id, parent_id, tipo, subtipo, label, orden, nivel, texto_original, meta_json, is_manual, is_deleted, creado_en, actualizado_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, 0, NOW(), NOW())
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param(
+        'iisssiis',
+        $importId,
+        $parentNodeId,
+        $tipo,
+        $subtype,
+        $label,
+        $orden,
+        $nivel,
+        $metaJson
+    );
+
+    $stmt->execute();
+    $newId = (int)$stmt->insert_id;
+    $stmt->close();
+
+    return $newId;
+}
+
+function cmp_edit_get_or_create_import_target_node_for_tituloreg(int $importId, string $tituloReg): int {
+    $root = cmp_edit_get_import_root_node($importId);
+    if (!$root) {
+        throw new RuntimeException('La importación no tiene nodo raíz.');
+    }
+
+    $rootId = (int)$root['id'];
+    $year = cmp_edit_extract_year_from_tituloreg($tituloReg);
+
+    if ($year !== null) {
+        $label = (string)$year;
+
+        $existing = cmp_edit_find_child_node_by_label($importId, $rootId, $label);
+        if ($existing) {
+            return (int)$existing['id'];
+        }
+
+        return cmp_edit_create_group_node_direct(
+            $importId,
+            $rootId,
+            $label,
+            'anio',
+            [
+                'tipo_estructura' => 'amistosos',
+                'anio_detectado' => $year,
+                'source_tituloReg' => $tituloReg,
+            ]
+        );
+    }
+
+    $sinAnio = cmp_edit_find_child_node_by_subtype($importId, $rootId, 'sin_anio');
+    if ($sinAnio) {
+        return (int)$sinAnio['id'];
+    }
+
+    $existing = cmp_edit_find_child_node_by_label($importId, $rootId, 'Sin año identificado');
+    if ($existing) {
+        return (int)$existing['id'];
+    }
+
+    return cmp_edit_create_group_node_direct(
+        $importId,
+        $rootId,
+        'Sin año identificado',
+        'sin_anio',
+        [
+            'tipo_estructura' => 'amistosos',
+            'source_tituloReg' => $tituloReg,
+        ]
+    );
+}
+
+function cmp_edit_imported_source_keys_for_import(int $importId): array {
+    $db = cmp_edit_db();
+
+    $sql = '
+        SELECT meta_json
+        FROM cmp_importacion_partidos
+        WHERE importacion_id = ?
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $importId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $keys = [];
+
+    while ($row = $res->fetch_assoc()) {
+        $meta = [];
+        if (!empty($row['meta_json'])) {
+            $decoded = json_decode((string)$row['meta_json'], true);
+            if (is_array($decoded)) {
+                $meta = $decoded;
+            }
+        }
+
+        $sourceId = trim((string)($meta['source_partidos_id'] ?? ''));
+        $sourceBarcode = trim((string)($meta['source_barcode'] ?? ''));
+        $sourceTituloReg = trim((string)($meta['source_tituloReg'] ?? ''));
+
+        if ($sourceId !== '') {
+            $keys['id:' . $sourceId] = true;
+            continue;
+        }
+
+        if ($sourceBarcode !== '' && $sourceTituloReg !== '') {
+            $keys['barcode:' . $sourceBarcode . '|tituloReg:' . $sourceTituloReg] = true;
+        }
+    }
+
+    $stmt->close();
+
+    return $keys;
+}
+
+function cmp_edit_source_key_for_partidos_row(array $row, string $tituloReg): string {
+    $sourceId = trim((string)($row['id'] ?? ''));
+
+    if ($sourceId !== '') {
+        return 'id:' . $sourceId;
+    }
+
+    $barcode = cmp_edit_first_existing_value($row, [
+        'partido_barcode',
+        'barcode',
+        'inv',
+        'inventario',
+    ]);
+
+    return 'barcode:' . $barcode . '|tituloReg:' . $tituloReg;
+}
+
+function cmp_edit_fetch_partidos_by_tituloreg(string $tituloReg): array {
+    $db = cmp_edit_db();
+
+    $columns = cmp_edit_table_columns('partidos');
+    if (!isset($columns['tituloReg'])) {
+        throw new RuntimeException('La tabla partidos no tiene columna tituloReg.');
+    }
+
+    $orderParts = [];
+
+    if (isset($columns['fecha'])) {
+        $orderParts[] = 'fecha ASC';
+    }
+
+    if (isset($columns['id'])) {
+        $orderParts[] = 'id ASC';
+    } elseif (isset($columns['barcode'])) {
+        $orderParts[] = 'barcode ASC';
+    }
+
+    $orderSql = $orderParts ? implode(', ', $orderParts) : 'tituloReg ASC';
+
+    $sql = "
+        SELECT *
+        FROM partidos
+        WHERE TRIM(tituloReg) = TRIM(?)
+        ORDER BY $orderSql
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('s', $tituloReg);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $rows;
+}
+
+function cmp_edit_next_match_order_for_node(int $nodeId): int {
+    $db = cmp_edit_db();
+
+    $sql = '
+        SELECT COALESCE(MAX(orden), 0) + 1 AS next_order
+        FROM cmp_importacion_partidos
+        WHERE nodo_id = ?
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $nodeId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc() ?: ['next_order' => 1];
+    $stmt->close();
+
+    return (int)$row['next_order'];
+}
+
+function cmp_edit_insert_imported_partido_from_partidos_row(
+    int $importId,
+    int $nodeId,
+    array $row,
+    string $tituloReg,
+    int $orden
+): void {
+    $db = cmp_edit_db();
+
+    $local = cmp_edit_first_existing_value($row, [
+        'equipo1_validado',
+        'equipo1',
+        'local_texto',
+        'local',
+        'equipo_local',
+        'home',
+    ]);
+
+    $visitante = cmp_edit_first_existing_value($row, [
+        'equipo2_validado',
+        'equipo2',
+        'visitante_texto',
+        'visitante',
+        'equipo_visitante',
+        'away',
+    ]);
+
+    if ($local === '' || $visitante === '') {
+        throw new InvalidArgumentException('Partido incompleto: falta local o visitante.');
+    }
+
+    $golesLocal = cmp_edit_first_existing_int_or_null($row, [
+        'goles_local',
+        'goles1',
+        'gl',
+        'golesLocal',
+    ]);
+
+    $golesVisitante = cmp_edit_first_existing_int_or_null($row, [
+        'goles_visitante',
+        'goles2',
+        'gv',
+        'golesVisitante',
+    ]);
+
+    $localNorm = cmp_ent_normalize_name($local);
+    $visitanteNorm = cmp_ent_normalize_name($visitante);
+
+    $localEntity = cmp_ent_resolve_name($local);
+    $visitanteEntity = cmp_ent_resolve_name($visitante);
+
+    $localEntityId = $localEntity ? (int)$localEntity['id'] : null;
+    $visitanteEntityId = $visitanteEntity ? (int)$visitanteEntity['id'] : null;
+    
+    $barcode = cmp_edit_first_existing_value($row, [
+        'partido_barcode',
+        'barcode',
+        'inv',
+        'inventario',
+    ]);
+
+    $fecha = cmp_edit_first_existing_value($row, [
+        'fecha_validada',
+        'fecha',
+        'fechaIso',
+    ]);
+
+    $observacion = cmp_edit_first_existing_value($row, [
+        'observacion',
+        'observaciones',
+        'nota',
+        'notas',
+    ]);
+
+    $sourceId = trim((string)($row['id'] ?? ''));
+
+    $meta = [
+        'source' => 'partidos',
+        'source_tituloReg' => $tituloReg,
+        'source_partidos_id' => $sourceId !== '' ? $sourceId : null,
+        'source_barcode' => $barcode !== '' ? $barcode : null,
+        'fecha_validada' => $fecha !== '' ? $fecha : null,
+        'observacion_origen' => $observacion !== '' ? $observacion : null,
+        'imported_from_partidos' => 1,
+    ];
+
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($metaJson === false) {
+        throw new RuntimeException('No se pudo serializar meta_json del partido.');
+    }
+
+    $fuenteLineaParts = [$tituloReg];
+
+    if ($barcode !== '') {
+        $fuenteLineaParts[] = $barcode;
+    }
+
+    if ($fecha !== '') {
+        $fuenteLineaParts[] = $fecha;
+    }
+
+    $fuenteLinea = implode(' · ', $fuenteLineaParts);
+
+    $sql = '
+        INSERT INTO cmp_importacion_partidos
+        (
+            importacion_id,
+            nodo_id,
+            orden,
+            local_texto,
+            local_entidad_id,
+            local_normalizado,
+            visitante_texto,
+            visitante_entidad_id,
+            visitante_normalizado,
+            goles_local,
+            goles_visitante,
+            fuente_linea,
+            meta_json,
+            creado_en,
+            actualizado_en
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param(
+        'iiisisisiisss',
+        $importId,
+        $nodeId,
+        $orden,
+        $local,
+        $localEntityId,
+        $localNorm,
+        $visitante,
+        $visitanteEntityId,
+        $visitanteNorm,
+        $golesLocal,
+        $golesVisitante,
+        $fuenteLinea,
+        $metaJson
+    );
+
+    $stmt->execute();
+    $stmt->close();
+}
+
+function cmp_edit_import_partidos_from_tituloreg(int $importId, string $tituloReg): array {
+    $tituloReg = trim($tituloReg);
+
+    if ($tituloReg === '') {
+        throw new InvalidArgumentException('Seleccioná un tituloReg.');
+    }
+
+    if ($tituloReg === '__otros__') {
+        throw new InvalidArgumentException('No se puede importar desde Otros. Elegí un tituloReg concreto.');
+    }
+
+    $sourceRows = cmp_edit_fetch_partidos_by_tituloreg($tituloReg);
+    if ($sourceRows === []) {
+        throw new RuntimeException('No se encontraron partidos para ese tituloReg.');
+    }
+
+    $targetNodeId = cmp_edit_get_or_create_import_target_node_for_tituloreg($importId, $tituloReg);
+    $existingKeys = cmp_edit_imported_source_keys_for_import($importId);
+
+    $db = cmp_edit_db();
+    $db->begin_transaction();
+
+    $stats = [
+        'target_node_id' => $targetNodeId,
+        'leidos' => count($sourceRows),
+        'insertados' => 0,
+        'omitidos_existentes' => 0,
+        'omitidos_incompletos' => 0,
+    ];
+
+    try {
+        $orden = cmp_edit_next_match_order_for_node($targetNodeId);
+
+        foreach ($sourceRows as $row) {
+            $key = cmp_edit_source_key_for_partidos_row($row, $tituloReg);
+
+            if (isset($existingKeys[$key])) {
+                $stats['omitidos_existentes']++;
+                continue;
+            }
+
+            $local = cmp_edit_first_existing_value($row, [
+                'equipo1_validado',
+                'equipo1',
+                'local_texto',
+                'local',
+                'equipo_local',
+                'home',
+            ]);
+
+            $visitante = cmp_edit_first_existing_value($row, [
+                'equipo2_validado',
+                'equipo2',
+                'visitante_texto',
+                'visitante',
+                'equipo_visitante',
+                'away',
+            ]);
+
+            if ($local === '' || $visitante === '') {
+                $stats['omitidos_incompletos']++;
+                continue;
+            }
+
+            cmp_edit_insert_imported_partido_from_partidos_row(
+                $importId,
+                $targetNodeId,
+                $row,
+                $tituloReg,
+                $orden
+            );
+
+            $existingKeys[$key] = true;
+            $orden++;
+            $stats['insertados']++;
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        throw $e;
+    }
 
     return $stats;
 }

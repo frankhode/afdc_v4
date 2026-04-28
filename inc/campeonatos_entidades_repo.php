@@ -443,3 +443,547 @@ function cmp_ent_backfill_all_matches(?int $importId = null): array {
     $stmt->close();
     return $stats;
 }
+
+function cmp_ent_detected_team_texts_for_import(int $importId): array {
+    if ($importId <= 0) {
+        throw new InvalidArgumentException('Importación inválida.');
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT
+            equipo_texto,
+            SUM(local_count) AS local_count,
+            SUM(visitante_count) AS visitante_count,
+            SUM(total_count) AS total_count,
+            MIN(example_match_id) AS example_match_id,
+            MIN(example_line) AS example_line
+        FROM (
+            SELECT
+                TRIM(local_texto) AS equipo_texto,
+                COUNT(*) AS local_count,
+                0 AS visitante_count,
+                COUNT(*) AS total_count,
+                MIN(id) AS example_match_id,
+                MIN(CONCAT(local_texto, ' vs ', visitante_texto)) AS example_line
+            FROM cmp_importacion_partidos
+            WHERE importacion_id = ?
+              AND COALESCE(estado,'activo') <> 'ignorado'
+              AND TRIM(COALESCE(local_texto,'')) <> ''
+            GROUP BY TRIM(local_texto)
+
+            UNION ALL
+
+            SELECT
+                TRIM(visitante_texto) AS equipo_texto,
+                0 AS local_count,
+                COUNT(*) AS visitante_count,
+                COUNT(*) AS total_count,
+                MIN(id) AS example_match_id,
+                MIN(CONCAT(local_texto, ' vs ', visitante_texto)) AS example_line
+            FROM cmp_importacion_partidos
+            WHERE importacion_id = ?
+              AND COALESCE(estado,'activo') <> 'ignorado'
+              AND TRIM(COALESCE(visitante_texto,'')) <> ''
+            GROUP BY TRIM(visitante_texto)
+        ) x
+        GROUP BY equipo_texto
+        ORDER BY total_count DESC, equipo_texto ASC
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('ii', $importId, $importId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $rows = [];
+
+    while ($row = $res->fetch_assoc()) {
+        $raw = trim((string)($row['equipo_texto'] ?? ''));
+        if ($raw === '') {
+            continue;
+        }
+
+        $normalized = cmp_ent_normalize_name($raw);
+        $entity = cmp_ent_resolve_name($raw);
+
+        $rows[] = [
+            'equipo_texto' => $raw,
+            'normalizado' => $normalized,
+            'local_count' => (int)($row['local_count'] ?? 0),
+            'visitante_count' => (int)($row['visitante_count'] ?? 0),
+            'total_count' => (int)($row['total_count'] ?? 0),
+            'example_match_id' => (int)($row['example_match_id'] ?? 0),
+            'example_line' => (string)($row['example_line'] ?? ''),
+            'entidad_id' => $entity ? (int)$entity['id'] : null,
+            'entidad_nombre' => $entity ? (string)$entity['nombre_mostrable'] : '',
+            'estado' => $entity ? 'resuelto' : 'pendiente',
+        ];
+    }
+
+    $stmt->close();
+
+    return $rows;
+}
+
+function cmp_ent_get_import_entity_stats(int $importId): array {
+    if ($importId <= 0) {
+        throw new InvalidArgumentException('Importación inválida.');
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN local_entidad_id IS NOT NULL THEN 1 ELSE 0 END) AS local_resueltos,
+            SUM(CASE WHEN visitante_entidad_id IS NOT NULL THEN 1 ELSE 0 END) AS visitante_resueltos,
+            SUM(CASE WHEN TRIM(COALESCE(local_normalizado,'')) <> '' THEN 1 ELSE 0 END) AS local_normalizados,
+            SUM(CASE WHEN TRIM(COALESCE(visitante_normalizado,'')) <> '' THEN 1 ELSE 0 END) AS visitante_normalizados
+        FROM cmp_importacion_partidos
+        WHERE importacion_id = ?
+          AND COALESCE(estado,'activo') <> 'ignorado'
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $importId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: [];
+    $stmt->close();
+
+    return [
+        'total' => (int)($row['total'] ?? 0),
+        'local_resueltos' => (int)($row['local_resueltos'] ?? 0),
+        'visitante_resueltos' => (int)($row['visitante_resueltos'] ?? 0),
+        'local_normalizados' => (int)($row['local_normalizados'] ?? 0),
+        'visitante_normalizados' => (int)($row['visitante_normalizados'] ?? 0),
+    ];
+}
+
+function cmp_ent_alias_exists_for_entity(int $entidadId, string $alias): bool {
+    if ($entidadId <= 0) {
+        return false;
+    }
+
+    $aliasNorm = cmp_ent_normalize_name($alias);
+    if ($aliasNorm === '') {
+        return false;
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT id
+        FROM cmp_entidades_alias
+        WHERE entidad_id = ?
+          AND alias_normalizado = ?
+        LIMIT 1
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('is', $entidadId, $aliasNorm);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return (bool)$row;
+}
+
+function cmp_ent_search_entities(string $q, int $limit = 12): array {
+    $q = trim($q);
+    if ($q === '') {
+        return [];
+    }
+
+    $limit = max(1, min(30, $limit));
+
+    $db = cmp_ent_db();
+
+    $norm = cmp_ent_normalize_name($q);
+    $likeText = '%' . $q . '%';
+    $likeNorm = '%' . $norm . '%';
+
+    $sql = "
+        SELECT
+            e.id,
+            e.nombre_mostrable,
+            e.nombre_oficial,
+            e.nombre_normalizado,
+            e.tipo,
+            MIN(a.alias) AS alias_match
+        FROM cmp_entidades e
+        LEFT JOIN cmp_entidades_alias a ON a.entidad_id = e.id
+        WHERE e.is_active = 1
+          AND (
+                e.nombre_mostrable LIKE ?
+             OR e.nombre_oficial LIKE ?
+             OR e.nombre_normalizado LIKE ?
+             OR a.alias LIKE ?
+             OR a.alias_normalizado LIKE ?
+          )
+        GROUP BY e.id, e.nombre_mostrable, e.nombre_oficial, e.nombre_normalizado, e.tipo
+        ORDER BY
+            CASE
+                WHEN e.nombre_normalizado = ? THEN 0
+                WHEN MIN(a.alias_normalizado) = ? THEN 1
+                WHEN e.nombre_normalizado LIKE ? THEN 2
+                ELSE 3
+            END,
+            e.nombre_mostrable ASC,
+            e.id ASC
+        LIMIT ?
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param(
+        'ssssssssi',
+        $likeText,
+        $likeText,
+        $likeNorm,
+        $likeText,
+        $likeNorm,
+        $norm,
+        $norm,
+        $likeNorm,
+        $limit
+    );
+
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $rows;
+}
+
+function cmp_ent_get_alias_by_normalized(string $alias): ?array {
+    $aliasNorm = cmp_ent_normalize_name($alias);
+    if ($aliasNorm === '') {
+        return null;
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT a.*, e.nombre_mostrable
+        FROM cmp_entidades_alias a
+        INNER JOIN cmp_entidades e ON e.id = a.entidad_id
+        WHERE a.alias_normalizado = ?
+        LIMIT 1
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('s', $aliasNorm);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $row;
+}
+
+function cmp_ent_list_admin(array $filters = []): array {
+    $db = cmp_ent_db();
+
+    $q = trim((string)($filters['q'] ?? ''));
+    $tipo = trim((string)($filters['tipo'] ?? ''));
+    $estado = trim((string)($filters['estado'] ?? 'activos'));
+
+    $where = [];
+    $types = '';
+    $params = [];
+
+    if ($estado === 'activos') {
+        $where[] = 'e.is_active = 1';
+    } elseif ($estado === 'inactivos') {
+        $where[] = 'e.is_active = 0';
+    }
+
+    if ($tipo !== '' && in_array($tipo, ['club', 'seleccion', 'combinado'], true)) {
+        $where[] = 'e.tipo = ?';
+        $types .= 's';
+        $params[] = $tipo;
+    }
+
+    if ($q !== '') {
+        $qNorm = cmp_ent_normalize_name($q);
+        $likeText = '%' . $q . '%';
+        $likeNorm = '%' . $qNorm . '%';
+
+        $where[] = "(
+            e.nombre_mostrable LIKE ?
+            OR e.nombre_oficial LIKE ?
+            OR e.nombre_normalizado LIKE ?
+            OR EXISTS (
+                SELECT 1
+                FROM cmp_entidades_alias ax
+                WHERE ax.entidad_id = e.id
+                  AND (
+                        ax.alias LIKE ?
+                     OR ax.alias_normalizado LIKE ?
+                  )
+            )
+        )";
+
+        $types .= 'sssss';
+        $params[] = $likeText;
+        $params[] = $likeText;
+        $params[] = $likeNorm;
+        $params[] = $likeText;
+        $params[] = $likeNorm;
+    }
+
+    $sql = "
+        SELECT
+            e.*,
+            (
+                SELECT COUNT(*)
+                FROM cmp_entidades_alias a
+                WHERE a.entidad_id = e.id
+            ) AS alias_count,
+            (
+                SELECT COUNT(*)
+                FROM cmp_importacion_partidos p
+                WHERE COALESCE(p.estado,'activo') <> 'ignorado'
+                  AND (
+                        p.local_entidad_id = e.id
+                     OR p.visitante_entidad_id = e.id
+                  )
+            ) AS partidos_count
+        FROM cmp_entidades e
+    ";
+
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+
+    $sql .= ' ORDER BY e.nombre_mostrable ASC, e.id ASC';
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $rows;
+}
+
+function cmp_ent_list_aliases(int $entidadId): array {
+    if ($entidadId <= 0) {
+        return [];
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT *
+        FROM cmp_entidades_alias
+        WHERE entidad_id = ?
+        ORDER BY alias ASC, id ASC
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $entidadId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $rows;
+}
+
+function cmp_ent_usage_stats(int $entidadId): array {
+    if ($entidadId <= 0) {
+        throw new InvalidArgumentException('Entidad inválida.');
+    }
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN local_entidad_id = ? THEN 1 ELSE 0 END) AS local_count,
+            SUM(CASE WHEN visitante_entidad_id = ? THEN 1 ELSE 0 END) AS visitante_count
+        FROM cmp_importacion_partidos
+        WHERE COALESCE(estado,'activo') <> 'ignorado'
+          AND (
+                local_entidad_id = ?
+             OR visitante_entidad_id = ?
+          )
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('iiii', $entidadId, $entidadId, $entidadId, $entidadId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: [];
+    $stmt->close();
+
+    return [
+        'total' => (int)($row['total'] ?? 0),
+        'local_count' => (int)($row['local_count'] ?? 0),
+        'visitante_count' => (int)($row['visitante_count'] ?? 0),
+    ];
+}
+
+function cmp_ent_update_entity(
+    int $entidadId,
+    string $nombreOficial,
+    string $nombreMostrable,
+    string $tipo,
+    ?string $pais,
+    ?string $ciudad,
+    ?string $provinciaEstado,
+    ?string $notas,
+    int $isActive
+): void {
+    if ($entidadId <= 0) {
+        throw new InvalidArgumentException('Entidad inválida.');
+    }
+
+    $nombreOficial = trim($nombreOficial);
+    $nombreMostrable = trim($nombreMostrable);
+
+    if ($nombreOficial === '' || $nombreMostrable === '') {
+        throw new InvalidArgumentException('Nombre oficial y nombre mostrable son obligatorios.');
+    }
+
+    if (!in_array($tipo, ['club', 'seleccion', 'combinado'], true)) {
+        $tipo = 'club';
+    }
+
+    $normalizado = cmp_ent_normalize_name($nombreMostrable);
+    if ($normalizado === '') {
+        throw new InvalidArgumentException('No se pudo normalizar el nombre mostrable.');
+    }
+
+    $pais = $pais !== null ? trim($pais) : null;
+    $ciudad = $ciudad !== null ? trim($ciudad) : null;
+    $provinciaEstado = $provinciaEstado !== null ? trim($provinciaEstado) : null;
+    $notas = $notas !== null ? trim($notas) : null;
+
+    $db = cmp_ent_db();
+
+    $sql = "
+        UPDATE cmp_entidades
+        SET nombre_oficial = ?,
+            nombre_mostrable = ?,
+            nombre_normalizado = ?,
+            tipo = ?,
+            pais = ?,
+            ciudad = ?,
+            provincia_estado = ?,
+            notas = ?,
+            is_active = ?,
+            updated_at = NOW()
+        WHERE id = ?
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param(
+        'ssssssssii',
+        $nombreOficial,
+        $nombreMostrable,
+        $normalizado,
+        $tipo,
+        $pais,
+        $ciudad,
+        $provinciaEstado,
+        $notas,
+        $isActive,
+        $entidadId
+    );
+
+    $stmt->execute();
+    $stmt->close();
+}
+
+function cmp_ent_delete_alias(int $aliasId): void {
+    if ($aliasId <= 0) {
+        throw new InvalidArgumentException('Alias inválido.');
+    }
+
+    $db = cmp_ent_db();
+
+    $stmt = $db->prepare('DELETE FROM cmp_entidades_alias WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $aliasId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function cmp_ent_get_alias(int $aliasId): ?array {
+    if ($aliasId <= 0) {
+        return null;
+    }
+
+    $db = cmp_ent_db();
+
+    $stmt = $db->prepare('SELECT * FROM cmp_entidades_alias WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('i', $aliasId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $row;
+}
+
+function cmp_ent_set_active(int $entidadId, int $isActive): void {
+    if ($entidadId <= 0) {
+        throw new InvalidArgumentException('Entidad inválida.');
+    }
+
+    $db = cmp_ent_db();
+
+    $stmt = $db->prepare('UPDATE cmp_entidades SET is_active = ?, updated_at = NOW() WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException($db->error);
+    }
+
+    $stmt->bind_param('ii', $isActive, $entidadId);
+    $stmt->execute();
+    $stmt->close();
+}

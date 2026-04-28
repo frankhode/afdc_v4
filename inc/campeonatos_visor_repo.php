@@ -33,26 +33,60 @@ function cmp_visor_normalize_text(string $text): string {
 
 function cmp_visor_list_years(): array {
     $db = cmp_visor_db();
-    $sql = "
-        SELECT DISTINCT temporada_detectada
+
+    $years = [];
+
+    $sqlImports = "
+        SELECT DISTINCT temporada_detectada AS year_value
         FROM cmp_importaciones
         WHERE temporada_detectada IS NOT NULL
           AND temporada_detectada <> ''
-        ORDER BY temporada_detectada DESC
+          AND temporada_detectada <> '0'
     ";
-    $res = $db->query($sql);
+
+    $res = $db->query($sqlImports);
     if (!$res) {
         throw new RuntimeException($db->error);
     }
 
-    $rows = [];
     while ($row = $res->fetch_assoc()) {
-        $val = trim((string)($row['temporada_detectada'] ?? ''));
+        $val = trim((string)($row['year_value'] ?? ''));
         if ($val !== '') {
-            $rows[] = $val;
+            $years[$val] = true;
         }
     }
     $res->free();
+
+    $sqlNodes = "
+        SELECT DISTINCT TRIM(n.label) AS year_value
+        FROM cmp_importacion_nodos n
+        INNER JOIN cmp_importaciones i ON i.id = n.importacion_id
+        WHERE COALESCE(n.is_deleted,0)=0
+          AND TRIM(n.label) REGEXP '^(19|20)[0-9]{2}$'
+          AND EXISTS (
+              SELECT 1
+              FROM cmp_importacion_partidos p
+              WHERE p.importacion_id = n.importacion_id
+                AND p.nodo_id = n.id
+                AND COALESCE(p.estado,'activo') <> 'ignorado'
+          )
+    ";
+
+    $res = $db->query($sqlNodes);
+    if (!$res) {
+        throw new RuntimeException($db->error);
+    }
+
+    while ($row = $res->fetch_assoc()) {
+        $val = trim((string)($row['year_value'] ?? ''));
+        if ($val !== '') {
+            $years[$val] = true;
+        }
+    }
+    $res->free();
+
+    $rows = array_keys($years);
+    rsort($rows, SORT_NATURAL);
 
     return $rows;
 }
@@ -68,7 +102,9 @@ function cmp_visor_list_teams(): array {
         }
     }
 
-    return $rows;
+    natcasesort($rows);
+
+    return array_values($rows);
 }
 
 function cmp_visor_has_global_filters(array $filters): bool {
@@ -87,15 +123,33 @@ function cmp_visor_list_imports(array $filters): array {
     $params = [];
 
     if ($filters['year'] !== '') {
-        $where[] = 'i.temporada_detectada = ?';
-        $types .= 's';
+        $where[] = "(
+            i.temporada_detectada = ?
+            OR EXISTS (
+                SELECT 1
+                FROM cmp_importacion_nodos n_year
+                INNER JOIN cmp_importacion_partidos p_year
+                    ON p_year.importacion_id = n_year.importacion_id
+                   AND p_year.nodo_id = n_year.id
+                   AND COALESCE(p_year.estado,'activo') <> 'ignorado'
+                WHERE n_year.importacion_id = i.id
+                  AND COALESCE(n_year.is_deleted,0)=0
+                  AND TRIM(n_year.label) = ?
+            )
+        )";
+        $types .= 'ss';
+        $params[] = $filters['year'];
         $params[] = $filters['year'];
     }
 
     if ($filters['team1'] !== '') {
         $resolved = cmp_ent_resolve_name($filters['team1']);
+        $filterNorm = cmp_ent_normalize_name($filters['team1']);
+        $likeNorm = '%' . $filterNorm . '%';
+
         if ($resolved) {
             $entityId = (int)$resolved['id'];
+
             $where[] = "EXISTS (
                 SELECT 1
                 FROM cmp_importacion_partidos p
@@ -104,13 +158,21 @@ function cmp_visor_list_imports(array $filters): array {
                   AND (
                         p.local_entidad_id = ?
                      OR p.visitante_entidad_id = ?
+                     OR COALESCE(NULLIF(p.local_normalizado,''), '') LIKE ?
+                     OR COALESCE(NULLIF(p.visitante_normalizado,''), '') LIKE ?
+                     OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(p.local_texto, ''))),'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ü','u'),'ñ','n') LIKE ?
+                     OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(p.visitante_texto, ''))),'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ü','u'),'ñ','n') LIKE ?
                   )
             )";
-            $types .= 'ii';
+
+            $types .= 'iissss';
             $params[] = $entityId;
             $params[] = $entityId;
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
+            $params[] = $likeNorm;
         } else {
-            $likeNorm = '%' . cmp_ent_normalize_name($filters['team1']) . '%';
             $where[] = "EXISTS (
                 SELECT 1
                 FROM cmp_importacion_partidos p
@@ -119,10 +181,11 @@ function cmp_visor_list_imports(array $filters): array {
                   AND (
                         COALESCE(NULLIF(p.local_normalizado,''), '') LIKE ?
                      OR COALESCE(NULLIF(p.visitante_normalizado,''), '') LIKE ?
-                     OR LOWER(TRIM(COALESCE(p.local_texto, ''))) LIKE ?
-                     OR LOWER(TRIM(COALESCE(p.visitante_texto, ''))) LIKE ?
+                     OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(p.local_texto, ''))),'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ü','u'),'ñ','n') LIKE ?
+                     OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(p.visitante_texto, ''))),'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ü','u'),'ñ','n') LIKE ?
                   )
             )";
+
             $types .= 'ssss';
             $params[] = $likeNorm;
             $params[] = $likeNorm;

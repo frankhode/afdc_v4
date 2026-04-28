@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 19-03-2026 a las 22:24:50
+-- Tiempo de generación: 29-04-2026 a las 00:33:42
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -120,6 +120,44 @@ CREATE TABLE `carritousuario` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `cmp_entidades`
+--
+
+CREATE TABLE `cmp_entidades` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `nombre_oficial` varchar(180) NOT NULL,
+  `nombre_mostrable` varchar(180) NOT NULL,
+  `nombre_normalizado` varchar(180) NOT NULL,
+  `tipo` enum('club','seleccion','combinado') NOT NULL DEFAULT 'club',
+  `pais` varchar(120) DEFAULT NULL,
+  `ciudad` varchar(120) DEFAULT NULL,
+  `provincia_estado` varchar(120) DEFAULT NULL,
+  `notas` text DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `cmp_entidades_alias`
+--
+
+CREATE TABLE `cmp_entidades_alias` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `entidad_id` int(10) UNSIGNED NOT NULL,
+  `alias` varchar(180) NOT NULL,
+  `alias_normalizado` varchar(180) NOT NULL,
+  `notas` varchar(255) DEFAULT NULL,
+  `origen` enum('manual','rsssf','migracion','detected') NOT NULL DEFAULT 'manual',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `cmp_importaciones`
 --
 
@@ -193,7 +231,11 @@ CREATE TABLE `cmp_importacion_partidos` (
   `nodo_id` int(10) UNSIGNED NOT NULL,
   `orden` int(11) NOT NULL DEFAULT 0,
   `local_texto` varchar(255) NOT NULL,
+  `local_entidad_id` int(10) UNSIGNED DEFAULT NULL,
+  `local_normalizado` varchar(180) DEFAULT NULL,
   `visitante_texto` varchar(255) NOT NULL,
+  `visitante_entidad_id` int(10) UNSIGNED DEFAULT NULL,
+  `visitante_normalizado` varchar(180) DEFAULT NULL,
   `goles_local` int(11) DEFAULT NULL,
   `goles_visitante` int(11) DEFAULT NULL,
   `fuente_linea` varchar(1000) DEFAULT NULL,
@@ -204,6 +246,34 @@ CREATE TABLE `cmp_importacion_partidos` (
   `nodo_id_origen` int(10) UNSIGNED DEFAULT NULL,
   `creado_en` datetime NOT NULL,
   `actualizado_en` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `cmp_importacion_partido_vinculos`
+--
+
+CREATE TABLE `cmp_importacion_partido_vinculos` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `importacion_id` int(10) UNSIGNED NOT NULL,
+  `importacion_partido_id` int(10) UNSIGNED NOT NULL,
+  `partido_barcode` varchar(8) NOT NULL,
+  `tituloReg` varchar(250) NOT NULL,
+  `estado` varchar(20) NOT NULL DEFAULT 'propuesto',
+  `score` int(11) NOT NULL DEFAULT 0,
+  `es_localia_invertida` tinyint(1) NOT NULL DEFAULT 0,
+  `fecha_importada` varchar(8) DEFAULT NULL,
+  `fecha_validada` varchar(8) DEFAULT NULL,
+  `fecha_coincide` tinyint(1) NOT NULL DEFAULT 0,
+  `equipo1_validado` varchar(250) DEFAULT NULL,
+  `equipo2_validado` varchar(250) DEFAULT NULL,
+  `cancha_validada` varchar(250) DEFAULT NULL,
+  `origen` enum('automatico','manual_drag','manual_boton') NOT NULL DEFAULT 'manual_boton',
+  `observacion` varchar(500) DEFAULT NULL,
+  `meta_json` mediumtext DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -392,6 +462,86 @@ CREATE TABLE `expo_v1` (
   `status` enum('draft','published') NOT NULL DEFAULT 'draft',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `fotografos`
+--
+
+CREATE TABLE `fotografos` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `apellido` varchar(150) NOT NULL DEFAULT '',
+  `nombre` varchar(150) NOT NULL DEFAULT '',
+  `nombre_mostrar` varchar(255) NOT NULL,
+  `slug` varchar(255) NOT NULL,
+  `fecha_nacimiento` varchar(50) NOT NULL DEFAULT '',
+  `fecha_fallecimiento` varchar(50) NOT NULL DEFAULT '',
+  `bio` mediumtext DEFAULT NULL,
+  `imagen_tipo` enum('ninguna','url','barcode','recorte') NOT NULL DEFAULT 'ninguna',
+  `imagen_valor` varchar(255) NOT NULL DEFAULT '',
+  `visible` tinyint(1) NOT NULL DEFAULT 1,
+  `observaciones` mediumtext DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `fotografos_raw`
+--
+
+CREATE TABLE `fotografos_raw` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `valor_raw` varchar(255) NOT NULL,
+  `valor_raw_norm` varchar(255) NOT NULL DEFAULT '',
+  `fuente` varchar(50) NOT NULL DEFAULT 'inventario_autor',
+  `fuente_ref` varchar(100) NOT NULL DEFAULT '',
+  `cantidad_usos` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `estado` enum('pendiente','resuelto','parcial','colectivo','ignorar') NOT NULL DEFAULT 'pendiente',
+  `observaciones` mediumtext DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `fotografos_sobres`
+--
+
+CREATE TABLE `fotografos_sobres` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `fotografo_id` int(10) UNSIGNED NOT NULL,
+  `barcode` varchar(50) NOT NULL,
+  `raw_id` int(10) UNSIGNED DEFAULT NULL,
+  `autor_raw` varchar(255) NOT NULL DEFAULT '',
+  `origen` varchar(50) NOT NULL DEFAULT 'inventario_autor',
+  `origen_ref` varchar(100) NOT NULL DEFAULT '',
+  `confianza` enum('alta','media','baja') NOT NULL DEFAULT 'alta',
+  `observaciones` mediumtext DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `fototeca_revision_bolsa`
+--
+
+CREATE TABLE `fototeca_revision_bolsa` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `sys` char(9) NOT NULL,
+  `tipo_bolsa` varchar(20) NOT NULL,
+  `valor_bolsa` varchar(255) NOT NULL,
+  `accion` enum('pendiente','asignar','descartar') NOT NULL DEFAULT 'pendiente',
+  `coleccion_asignada` varchar(255) DEFAULT NULL,
+  `nota` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -750,6 +900,24 @@ ALTER TABLE `campeonatos_import_nodos`
   ADD KEY `idx_cin_orden` (`orden`);
 
 --
+-- Indices de la tabla `cmp_entidades`
+--
+ALTER TABLE `cmp_entidades`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_cmp_entidades_nombre_normalizado` (`nombre_normalizado`),
+  ADD KEY `idx_cmp_entidades_tipo` (`tipo`),
+  ADD KEY `idx_cmp_entidades_nombre_mostrable` (`nombre_mostrable`);
+
+--
+-- Indices de la tabla `cmp_entidades_alias`
+--
+ALTER TABLE `cmp_entidades_alias`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_cmp_entidades_alias_normalizado` (`alias_normalizado`),
+  ADD KEY `idx_cmp_entidades_alias_alias` (`alias`),
+  ADD KEY `idx_cmp_entidades_alias_entidad_id` (`entidad_id`);
+
+--
 -- Indices de la tabla `cmp_importaciones`
 --
 ALTER TABLE `cmp_importaciones`
@@ -782,7 +950,24 @@ ALTER TABLE `cmp_importacion_nodos`
 ALTER TABLE `cmp_importacion_partidos`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_cmp_partidos_importacion` (`importacion_id`),
-  ADD KEY `idx_cmp_partidos_nodo` (`nodo_id`);
+  ADD KEY `idx_cmp_partidos_nodo` (`nodo_id`),
+  ADD KEY `idx_cmp_imp_partidos_local_entidad_id` (`local_entidad_id`),
+  ADD KEY `idx_cmp_imp_partidos_visitante_entidad_id` (`visitante_entidad_id`),
+  ADD KEY `idx_cmp_imp_partidos_local_normalizado` (`local_normalizado`),
+  ADD KEY `idx_cmp_imp_partidos_visitante_normalizado` (`visitante_normalizado`);
+
+--
+-- Indices de la tabla `cmp_importacion_partido_vinculos`
+--
+ALTER TABLE `cmp_importacion_partido_vinculos`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_cmp_vinculo_import_partido_barcode` (`importacion_partido_id`,`partido_barcode`),
+  ADD KEY `idx_cmp_vinculo_importacion` (`importacion_id`),
+  ADD KEY `idx_cmp_vinculo_partido_importado` (`importacion_partido_id`),
+  ADD KEY `idx_cmp_vinculo_tituloreg` (`tituloReg`),
+  ADD KEY `idx_cmp_vinculo_barcode` (`partido_barcode`),
+  ADD KEY `idx_cmp_vinculo_score` (`importacion_partido_id`,`score`),
+  ADD KEY `idx_cmp_vinculo_estado` (`estado`);
 
 --
 -- Indices de la tabla `colecciones`
@@ -875,6 +1060,47 @@ ALTER TABLE `expo_v1`
   ADD UNIQUE KEY `uq_expo_v1_slug` (`slug`),
   ADD KEY `idx_expo_v1_collection` (`source_collection_id`),
   ADD KEY `idx_expo_v1_status` (`status`);
+
+--
+-- Indices de la tabla `fotografos`
+--
+ALTER TABLE `fotografos`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_fotografos_slug` (`slug`),
+  ADD KEY `idx_fotografos_visible` (`visible`),
+  ADD KEY `idx_fotografos_apellido` (`apellido`),
+  ADD KEY `idx_fotografos_nombre_mostrar` (`nombre_mostrar`);
+
+--
+-- Indices de la tabla `fotografos_raw`
+--
+ALTER TABLE `fotografos_raw`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_fotografos_raw_valor_raw` (`valor_raw`),
+  ADD KEY `idx_fotografos_raw_norm` (`valor_raw_norm`),
+  ADD KEY `idx_fotografos_raw_estado` (`estado`),
+  ADD KEY `idx_fotografos_raw_cantidad` (`cantidad_usos`);
+
+--
+-- Indices de la tabla `fotografos_sobres`
+--
+ALTER TABLE `fotografos_sobres`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_fotografos_sobres_fotografo_barcode_raw` (`fotografo_id`,`barcode`,`raw_id`),
+  ADD KEY `idx_fotografos_sobres_barcode` (`barcode`),
+  ADD KEY `idx_fotografos_sobres_fotografo` (`fotografo_id`),
+  ADD KEY `idx_fotografos_sobres_raw` (`raw_id`);
+
+--
+-- Indices de la tabla `fototeca_revision_bolsa`
+--
+ALTER TABLE `fototeca_revision_bolsa`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_sys_bolsa` (`sys`,`tipo_bolsa`,`valor_bolsa`),
+  ADD KEY `idx_tipo_valor` (`tipo_bolsa`,`valor_bolsa`),
+  ADD KEY `idx_sys` (`sys`),
+  ADD KEY `idx_accion` (`accion`),
+  ADD KEY `idx_coleccion_asignada` (`coleccion_asignada`);
 
 --
 -- Indices de la tabla `indizimagenes`
@@ -1061,6 +1287,18 @@ ALTER TABLE `campeonatos_import_nodos`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT de la tabla `cmp_entidades`
+--
+ALTER TABLE `cmp_entidades`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `cmp_entidades_alias`
+--
+ALTER TABLE `cmp_entidades_alias`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de la tabla `cmp_importaciones`
 --
 ALTER TABLE `cmp_importaciones`
@@ -1082,6 +1320,12 @@ ALTER TABLE `cmp_importacion_nodos`
 -- AUTO_INCREMENT de la tabla `cmp_importacion_partidos`
 --
 ALTER TABLE `cmp_importacion_partidos`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `cmp_importacion_partido_vinculos`
+--
+ALTER TABLE `cmp_importacion_partido_vinculos`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -1112,6 +1356,30 @@ ALTER TABLE `expo_piece_v1`
 -- AUTO_INCREMENT de la tabla `expo_v1`
 --
 ALTER TABLE `expo_v1`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `fotografos`
+--
+ALTER TABLE `fotografos`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `fotografos_raw`
+--
+ALTER TABLE `fotografos_raw`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `fotografos_sobres`
+--
+ALTER TABLE `fotografos_sobres`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `fototeca_revision_bolsa`
+--
+ALTER TABLE `fototeca_revision_bolsa`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -1169,6 +1437,12 @@ ALTER TABLE `campeonatos_import_nodos`
   ADD CONSTRAINT `fk_cin_parent` FOREIGN KEY (`parent_id`) REFERENCES `campeonatos_import_nodos` (`id`) ON DELETE CASCADE;
 
 --
+-- Filtros para la tabla `cmp_entidades_alias`
+--
+ALTER TABLE `cmp_entidades_alias`
+  ADD CONSTRAINT `fk_cmp_entidades_alias_entidad` FOREIGN KEY (`entidad_id`) REFERENCES `cmp_entidades` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Filtros para la tabla `cmp_importacion_goles`
 --
 ALTER TABLE `cmp_importacion_goles`
@@ -1186,6 +1460,8 @@ ALTER TABLE `cmp_importacion_nodos`
 -- Filtros para la tabla `cmp_importacion_partidos`
 --
 ALTER TABLE `cmp_importacion_partidos`
+  ADD CONSTRAINT `fk_cmp_imp_partidos_local_entidad` FOREIGN KEY (`local_entidad_id`) REFERENCES `cmp_entidades` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_cmp_imp_partidos_visitante_entidad` FOREIGN KEY (`visitante_entidad_id`) REFERENCES `cmp_entidades` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_cmp_partidos_importacion` FOREIGN KEY (`importacion_id`) REFERENCES `cmp_importaciones` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_cmp_partidos_nodo` FOREIGN KEY (`nodo_id`) REFERENCES `cmp_importacion_nodos` (`id`) ON DELETE CASCADE;
 
@@ -1207,6 +1483,13 @@ ALTER TABLE `collection_items_v2`
 --
 ALTER TABLE `expo_piece_v1`
   ADD CONSTRAINT `fk_expo_piece_v1_expo` FOREIGN KEY (`expo_id`) REFERENCES `expo_v1` (`id`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `fotografos_sobres`
+--
+ALTER TABLE `fotografos_sobres`
+  ADD CONSTRAINT `fk_fotografos_sobres_fotografo` FOREIGN KEY (`fotografo_id`) REFERENCES `fotografos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_fotografos_sobres_raw` FOREIGN KEY (`raw_id`) REFERENCES `fotografos_raw` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `sets_v2`
