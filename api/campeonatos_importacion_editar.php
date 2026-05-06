@@ -250,7 +250,7 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
     <?php endif; ?>
 </div>
 
-<div class="cmp-editor-shell cmp-editor-shell--two-cols" id="workspace">
+<div class="cmp-editor-shell cmp-editor-shell--two-cols" id="workspace" data-cmp-editor-split>
     <aside class="cmp-editor-tree">
         <div class="cmp-card">
             <div class="cmp-card-head">
@@ -263,6 +263,8 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
             <?php cmp_edit_render_tree($tree, $currentNodeId, $id); ?>
         </div>
     </aside>
+
+    <div class="cmp-editor-resizer" data-cmp-editor-resizer title="Arrastrar para ajustar paneles"></div>
 
     <section class="cmp-editor-main">
         <div class="cmp-card cmp-panel-main">
@@ -301,37 +303,7 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
                     <div class="cmp-stat"><div class="cmp-stat-label">Subtipo</div><div class="cmp-stat-value"><?= cmp_h((string)($currentNode['subtipo'] ?? '')) ?></div></div>
                     <div class="cmp-stat"><div class="cmp-stat-label">Orden</div><div class="cmp-stat-value"><?= (int)($currentNode['orden'] ?? 0) ?></div></div>
                 </div>
-
-                <?php if ($childNodes !== []): ?>
-                    <section class="cmp-subsection">
-                        <h4>Hijos del nodo</h4>
-                        <div class="cmp-table-wrap">
-                            <table class="cmp-table">
-                                <thead>
-                                <tr>
-                                    <th>Tipo</th>
-                                    <th>Label</th>
-                                    <th>Partidos</th>
-                                    <th></th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($childNodes as $child): ?>
-                                    <tr>
-                                        <td><?= cmp_h(cmp_edit_node_summary_type($child)) ?></td>
-                                        <td><?= cmp_h((string)$child['label']) ?></td>
-                                        <td><?= (int)($child['match_count_total'] ?? 0) ?></td>
-                                        <td class="cmp-nowrap">
-                                            <a class="cmp-btn cmp-btn-sm" href="campeonatos_importacion_editar.php?id=<?= (int)$id ?>&node_id=<?= (int)$child['id'] ?>#workspace">Abrir</a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-                <?php endif; ?>
-                <?php if ($hasSelectedNode): ?>
+            <?php if ($hasSelectedNode): ?>
 <section class="cmp-subsection">
   <h4><?= $isOtrosMode ? 'Carga manual de sobres a partidos' : 'Cruce con partidos validados' ?></h4>
 
@@ -351,13 +323,13 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
   }
   ?>
 
-  <form method="get" action="campeonatos_importacion_editar.php" class="cmp-stack-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+  <form method="get" action="campeonatos_importacion_editar.php" class="cmp-stack-form cmp-manual-filter-form">
     <input type="hidden" name="id" value="<?= (int)$id ?>">
     <input type="hidden" name="node_id" value="<?= (int)$currentNodeId ?>">
 
     <div>
       <label for="tituloReg">tituloReg</label><br>
-      <select name="tituloReg" id="tituloReg" required>
+      <select name="tituloReg" id="tituloReg" class="cmp-select-tituloreg" required>
         <option value="">Seleccionar…</option>
         <?php foreach ($tituloRegOptions as $opt): ?>
           <option value="<?= cmp_h($opt) ?>" <?= $selectedTituloReg === $opt ? 'selected' : '' ?>>
@@ -388,7 +360,7 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
       </div>
 
       <?php if ($otrosTitulo !== ''): ?>
-        <div>
+        <div class="cmp-manual-selected">
           <strong>Seleccionado:</strong><br>
           <span><?= cmp_h($otrosTitulo) ?></span><br>
           <small>sys <?= cmp_h($otrosSys) ?></small>
@@ -478,15 +450,15 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
         <input type="hidden" name="otros_filter" value="<?= cmp_h($otrosFilter) ?>">
 
         <div class="cmp-table-wrap" style="margin-top:12px;">
-          <table class="cmp-table">
+          <table class="cmp-table cmp-manual-sobres-table">
             <thead>
               <tr>
                 <th>Barcode</th>
                 <th>Título</th>
                 <th>Fecha</th>
                 <th>Estado</th>
-                <th>Equipo 1</th>
-                <th>Equipo 2</th>
+                <th class="cmp-col-team">Equipo 1</th>
+                <th class="cmp-col-team">Equipo 2</th>
               </tr>
             </thead>
             <tbody>
@@ -517,12 +489,19 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
                         <?= cmp_h((string)$row['equipo1']) ?>
                         <input type="hidden" name="equipo1[]" value="<?= cmp_h((string)$row['equipo1']) ?>">
                       <?php else: ?>
-                        <select name="equipo1[]">
-                          <option value="">Seleccionar…</option>
-                          <?php foreach ($teamOptions as $team): ?>
-                            <option value="<?= cmp_h($team) ?>"><?= cmp_h($team) ?></option>
-                          <?php endforeach; ?>
-                        </select>
+                        <div class="cmp-team-autocomplete" data-cmp-team-autocomplete>
+                          <input
+                            type="text"
+                            name="equipo1[]"
+                            class="cmp-team-input"
+                            value=""
+                            placeholder="Escribir equipo…"
+                            autocomplete="off"
+                            data-cmp-team-input
+                          >
+                          <button type="button" class="cmp-team-add-btn" data-cmp-team-open-create title="Agregar equipo o alias">+</button>
+                          <div class="cmp-team-suggestions" data-cmp-team-suggestions></div>
+                        </div>
                       <?php endif; ?>
                     </td>
                     <td>
@@ -530,12 +509,19 @@ cmp_render_header('Editar estructura de importación', 'container-fluid');
                         <?= cmp_h((string)$row['equipo2']) ?>
                         <input type="hidden" name="equipo2[]" value="<?= cmp_h((string)$row['equipo2']) ?>">
                       <?php else: ?>
-                        <select name="equipo2[]">
-                          <option value="">Seleccionar…</option>
-                          <?php foreach ($teamOptions as $team): ?>
-                            <option value="<?= cmp_h($team) ?>"><?= cmp_h($team) ?></option>
-                          <?php endforeach; ?>
-                        </select>
+                        <div class="cmp-team-autocomplete" data-cmp-team-autocomplete>
+                          <input
+                            type="text"
+                            name="equipo2[]"
+                            class="cmp-team-input"
+                            value=""
+                            placeholder="Escribir equipo…"
+                            autocomplete="off"
+                            data-cmp-team-input
+                          >
+                          <button type="button" class="cmp-team-add-btn" data-cmp-team-open-create title="Agregar equipo o alias">+</button>
+                          <div class="cmp-team-suggestions" data-cmp-team-suggestions></div>
+                        </div>
                       <?php endif; ?>
                     </td>
                   </tr>
@@ -1315,6 +1301,628 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 })();
 </script>
+<script>
+(function () {
+  const shell = document.querySelector('[data-cmp-editor-split]');
+  const resizer = document.querySelector('[data-cmp-editor-resizer]');
+
+  if (!shell || !resizer) {
+    return;
+  }
+
+  const storageKey = 'afdc_cmp_import_editor_left_width';
+
+  function isStackedLayout() {
+    return window.matchMedia('(max-width: 980px)').matches;
+  }
+
+  function applyWidth(widthPx) {
+    if (isStackedLayout()) {
+      shell.style.gridTemplateColumns = '';
+      return;
+    }
+
+    const shellRect = shell.getBoundingClientRect();
+    const minLeft = 280;
+    const minRight = 420;
+    const handle = 10;
+    const maxLeft = Math.max(minLeft, shellRect.width - minRight - handle);
+    const next = Math.max(minLeft, Math.min(widthPx, maxLeft));
+
+    shell.style.gridTemplateColumns = next + 'px 10px minmax(0, 1fr)';
+    localStorage.setItem(storageKey, String(Math.round(next)));
+  }
+
+  const stored = parseInt(localStorage.getItem(storageKey) || '', 10);
+  if (!Number.isNaN(stored) && stored > 0) {
+    applyWidth(stored);
+  }
+
+  let dragging = false;
+
+  resizer.addEventListener('pointerdown', function (ev) {
+    if (isStackedLayout()) {
+      return;
+    }
+
+    dragging = true;
+    document.body.classList.add('cmp-is-resizing');
+    resizer.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+  });
+
+  resizer.addEventListener('pointermove', function (ev) {
+    if (!dragging) {
+      return;
+    }
+
+    const shellRect = shell.getBoundingClientRect();
+    const leftWidth = ev.clientX - shellRect.left;
+    applyWidth(leftWidth);
+  });
+
+  function stopDragging(ev) {
+    if (!dragging) {
+      return;
+    }
+
+    dragging = false;
+    document.body.classList.remove('cmp-is-resizing');
+
+    try {
+      resizer.releasePointerCapture(ev.pointerId);
+    } catch (err) {}
+  }
+
+  resizer.addEventListener('pointerup', stopDragging);
+  resizer.addEventListener('pointercancel', stopDragging);
+
+  window.addEventListener('resize', function () {
+    const storedAfterResize = parseInt(localStorage.getItem(storageKey) || '', 10);
+    if (!Number.isNaN(storedAfterResize) && storedAfterResize > 0) {
+      applyWidth(storedAfterResize);
+    }
+  });
+
+  document.querySelectorAll('.cmp-team-select').forEach(function (select) {
+    const syncTitle = function () {
+      select.title = select.options[select.selectedIndex]?.text || '';
+    };
+
+    syncTitle();
+    select.addEventListener('change', syncTitle);
+  });
+})();
+</script>
 <?php endif; ?>
+
+<div class="cmp-modal-backdrop" id="cmpTeamEntityModal" aria-hidden="true">
+  <div class="cmp-modal cmp-modal-small cmp-team-entity-modal" role="dialog" aria-modal="true" aria-labelledby="cmpTeamEntityModalTitle">
+    <div class="cmp-modal-head">
+      <div>
+        <h3 id="cmpTeamEntityModalTitle">Agregar equipo / alias</h3>
+        <div class="cmp-meta">Crear entidad nueva o vincular el texto escrito como alias.</div>
+      </div>
+      <button type="button" class="cmp-btn cmp-btn-sm" data-cmp-team-modal-close>Cerrar</button>
+    </div>
+
+    <div class="cmp-team-modal-body">
+      <label>
+        Texto escrito
+        <input type="text" id="cmpTeamRawText" autocomplete="off">
+      </label>
+
+      <div class="cmp-team-modal-actions">
+        <button type="button" class="cmp-btn cmp-btn-primary" data-cmp-team-create-entity>
+          Crear equipo nuevo
+        </button>
+      </div>
+
+      <hr>
+
+      <label>
+        O agregar como alias de equipo existente
+        <input type="text" id="cmpTeamAliasTargetSearch" placeholder="Buscar equipo existente…" autocomplete="off">
+      </label>
+
+      <input type="hidden" id="cmpTeamAliasTargetId" value="">
+
+      <div class="cmp-team-modal-results" id="cmpTeamAliasTargetResults"></div>
+
+      <div class="cmp-team-modal-actions">
+        <button type="button" class="cmp-btn" data-cmp-team-create-alias disabled>
+          Crear alias y usar equipo seleccionado
+        </button>
+      </div>
+
+      <div class="cmp-team-modal-message" id="cmpTeamModalMessage"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const teamAjaxUrl = 'campeonatos_entidades_ajax.php';
+
+  let activeTeamInput = null;
+  let activeSuggestions = [];
+  let activeSuggestionIndex = -1;
+  let teamSearchAbort = null;
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function debounce(fn, delay) {
+    let timer = null;
+    return function () {
+      const args = arguments;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(function () {
+        fn.apply(null, args);
+      }, delay);
+    };
+  }
+
+  function normalizeItems(data) {
+    const rows = data.items || data.results || [];
+    return rows.map(function (row) {
+      return {
+        id: row.id,
+        label: row.label || row.nombre_mostrable || '',
+        value: row.value || row.nombre_mostrable || '',
+        official: row.nombre_oficial || row.official || '',
+        type: row.tipo || row.type || '',
+        alias: row.alias_match || row.alias || ''
+      };
+    });
+  }
+
+  function closeTeamSuggestions(box) {
+    const suggestions = box?.querySelector('[data-cmp-team-suggestions]');
+    if (suggestions) {
+      suggestions.innerHTML = '';
+      suggestions.classList.remove('is-open');
+    }
+    activeSuggestions = [];
+    activeSuggestionIndex = -1;
+  }
+
+  function closeAllTeamSuggestions() {
+    document.querySelectorAll('[data-cmp-team-autocomplete]').forEach(closeTeamSuggestions);
+  }
+
+  function setTeamInputValue(input, item) {
+    input.value = item.value || item.label || '';
+    input.dataset.entityId = item.id ? String(item.id) : '';
+    input.dataset.normalized = '1';
+    input.classList.remove('is-unresolved');
+    input.classList.add('is-resolved');
+    input.title = item.official || item.label || input.value;
+    closeAllTeamSuggestions();
+  }
+
+  function markTeamInputPending(input) {
+    input.dataset.entityId = '';
+    input.dataset.normalized = '';
+    input.classList.remove('is-resolved');
+
+    if (input.value.trim().length >= 2) {
+      input.classList.add('is-unresolved');
+      input.title = 'No normalizado todavía. Ctrl+Enter o + para crear equipo/alias.';
+    } else {
+      input.classList.remove('is-unresolved');
+      input.title = '';
+    }
+  }
+
+  function renderTeamSuggestions(input, box, items) {
+    const suggestions = box.querySelector('[data-cmp-team-suggestions]');
+    if (!suggestions) {
+      return;
+    }
+
+    activeTeamInput = input;
+    activeSuggestions = items;
+    activeSuggestionIndex = items.length > 0 ? 0 : -1;
+
+    if (items.length === 0) {
+      suggestions.innerHTML = `
+        <button type="button" class="cmp-team-suggestion cmp-team-suggestion-empty" data-cmp-team-open-create>
+          No hay coincidencias. Agregar equipo o alias…
+        </button>
+      `;
+      suggestions.classList.add('is-open');
+      return;
+    }
+
+    suggestions.innerHTML = items.map(function (item, idx) {
+      const alias = item.alias && item.alias !== item.label
+        ? `<small>alias: ${escapeHtml(item.alias)}</small>`
+        : '';
+
+      return `
+        <button
+          type="button"
+          class="cmp-team-suggestion ${idx === activeSuggestionIndex ? 'is-active' : ''}"
+          data-cmp-team-suggestion-index="${idx}"
+        >
+          <strong>${escapeHtml(item.label)}</strong>
+          ${alias}
+        </button>
+      `;
+    }).join('');
+
+    suggestions.classList.add('is-open');
+  }
+
+  const runTeamSearch = debounce(function (input, box) {
+    const q = input.value.trim();
+
+    markTeamInputPending(input);
+
+    if (q.length < 2) {
+      closeTeamSuggestions(box);
+      return;
+    }
+
+    if (teamSearchAbort) {
+      teamSearchAbort.abort();
+    }
+
+    teamSearchAbort = new AbortController();
+
+    fetch(`${teamAjaxUrl}?action=search&q=${encodeURIComponent(q)}&limit=12`, {
+      signal: teamSearchAbort.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          throw new Error(data.error || 'Error buscando equipos.');
+        }
+
+        renderTeamSuggestions(input, box, normalizeItems(data));
+      })
+      .catch(function (err) {
+        if (err.name === 'AbortError') {
+          return;
+        }
+        renderTeamSuggestions(input, box, []);
+      });
+  }, 180);
+
+  function updateActiveSuggestion(suggestions) {
+    suggestions.querySelectorAll('[data-cmp-team-suggestion-index]').forEach(function (btn) {
+      const idx = parseInt(btn.dataset.cmpTeamSuggestionIndex || '-1', 10);
+      btn.classList.toggle('is-active', idx === activeSuggestionIndex);
+    });
+  }
+
+  document.querySelectorAll('[data-cmp-team-autocomplete]').forEach(function (box) {
+    const input = box.querySelector('[data-cmp-team-input]');
+    const suggestions = box.querySelector('[data-cmp-team-suggestions]');
+    const addBtn = box.querySelector('[data-cmp-team-open-create]');
+
+    if (!input || !suggestions) {
+      return;
+    }
+
+    input.addEventListener('input', function () {
+      runTeamSearch(input, box);
+    });
+
+    input.addEventListener('focus', function () {
+      if (input.value.trim().length >= 2) {
+        runTeamSearch(input, box);
+      }
+    });
+
+    input.addEventListener('keydown', function (ev) {
+      if (ev.ctrlKey && ev.key === 'Enter') {
+        ev.preventDefault();
+        openTeamEntityModal(input);
+        return;
+      }
+
+      if (!suggestions.classList.contains('is-open')) {
+        return;
+      }
+
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        if (activeSuggestions.length > 0) {
+          activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, activeSuggestions.length - 1);
+          updateActiveSuggestion(suggestions);
+        }
+        return;
+      }
+
+      if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        if (activeSuggestions.length > 0) {
+          activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+          updateActiveSuggestion(suggestions);
+        }
+        return;
+      }
+
+      if (ev.key === 'Enter') {
+        if (activeSuggestions.length > 0 && activeSuggestionIndex >= 0) {
+          ev.preventDefault();
+          setTeamInputValue(input, activeSuggestions[activeSuggestionIndex]);
+        }
+        return;
+      }
+
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closeTeamSuggestions(box);
+      }
+    });
+
+    suggestions.addEventListener('mousedown', function (ev) {
+      ev.preventDefault();
+    });
+
+    suggestions.addEventListener('click', function (ev) {
+      const createBtn = ev.target.closest('[data-cmp-team-open-create]');
+      if (createBtn) {
+        openTeamEntityModal(input);
+        return;
+      }
+
+      const btn = ev.target.closest('[data-cmp-team-suggestion-index]');
+      if (!btn) {
+        return;
+      }
+
+      const idx = parseInt(btn.dataset.cmpTeamSuggestionIndex || '-1', 10);
+      if (idx >= 0 && activeSuggestions[idx]) {
+        setTeamInputValue(input, activeSuggestions[idx]);
+      }
+    });
+
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        openTeamEntityModal(input);
+      });
+    }
+  });
+
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest('[data-cmp-team-autocomplete]') && !ev.target.closest('#cmpTeamEntityModal')) {
+      closeAllTeamSuggestions();
+    }
+  });
+
+  const teamModal = document.getElementById('cmpTeamEntityModal');
+  const rawInput = document.getElementById('cmpTeamRawText');
+  const aliasSearchInput = document.getElementById('cmpTeamAliasTargetSearch');
+  const aliasTargetId = document.getElementById('cmpTeamAliasTargetId');
+  const aliasResults = document.getElementById('cmpTeamAliasTargetResults');
+  const aliasButton = document.querySelector('[data-cmp-team-create-alias]');
+  const createEntityButton = document.querySelector('[data-cmp-team-create-entity]');
+  const modalMessage = document.getElementById('cmpTeamModalMessage');
+
+  function openTeamEntityModal(input) {
+    activeTeamInput = input;
+
+    if (!teamModal || !rawInput) {
+      return;
+    }
+
+    closeAllTeamSuggestions();
+
+    rawInput.value = input.value.trim();
+    aliasSearchInput.value = '';
+    aliasTargetId.value = '';
+    aliasResults.innerHTML = '';
+    modalMessage.textContent = '';
+    aliasButton.disabled = true;
+
+    teamModal.classList.add('is-open');
+    teamModal.setAttribute('aria-hidden', 'false');
+
+    window.setTimeout(function () {
+      if (rawInput.value.trim() === '') {
+        rawInput.focus();
+      } else {
+        aliasSearchInput.focus();
+      }
+    }, 30);
+  }
+
+  function closeTeamEntityModal() {
+    if (!teamModal) {
+      return;
+    }
+
+    teamModal.classList.remove('is-open');
+    teamModal.setAttribute('aria-hidden', 'true');
+  }
+
+  document.querySelectorAll('[data-cmp-team-modal-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeTeamEntityModal);
+  });
+
+  if (teamModal) {
+    teamModal.addEventListener('click', function (ev) {
+      if (ev.target === teamModal) {
+        closeTeamEntityModal();
+      }
+    });
+  }
+
+  if (createEntityButton) {
+    createEntityButton.addEventListener('click', function () {
+      const name = rawInput.value.trim();
+
+      if (name === '') {
+        modalMessage.textContent = 'Escribí un nombre de equipo.';
+        return;
+      }
+
+      const form = new FormData();
+      form.append('action', 'create_entity');
+      form.append('name', name);
+      form.append('type', 'club');
+
+      modalMessage.textContent = 'Creando equipo…';
+
+      fetch(teamAjaxUrl, {
+        method: 'POST',
+        body: form,
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
+            throw new Error(data.error || 'No se pudo crear el equipo.');
+          }
+
+          if (activeTeamInput && data.entity) {
+            setTeamInputValue(activeTeamInput, normalizeItems({ items: [data.entity] })[0]);
+          }
+
+          closeTeamEntityModal();
+        })
+        .catch(function (err) {
+          modalMessage.textContent = err.message;
+        });
+    });
+  }
+
+  const runAliasTargetSearch = debounce(function () {
+    const q = aliasSearchInput.value.trim();
+
+    aliasTargetId.value = '';
+    aliasButton.disabled = true;
+
+    if (q.length < 2) {
+      aliasResults.innerHTML = '';
+      return;
+    }
+
+    fetch(`${teamAjaxUrl}?action=search&q=${encodeURIComponent(q)}&limit=10`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          throw new Error(data.error || 'Error buscando equipos.');
+        }
+
+        const items = normalizeItems(data);
+
+        if (items.length === 0) {
+          aliasResults.innerHTML = '<div class="cmp-empty">Sin coincidencias.</div>';
+          return;
+        }
+
+        aliasResults.innerHTML = items.map(function (item) {
+          return `
+            <button type="button" class="cmp-team-modal-result" data-cmp-team-alias-target-id="${item.id}" data-cmp-team-alias-target-label="${escapeHtml(item.label)}">
+              <strong>${escapeHtml(item.label)}</strong>
+              <small>${escapeHtml(item.official || item.type || '')}</small>
+            </button>
+          `;
+        }).join('');
+      })
+      .catch(function (err) {
+        aliasResults.innerHTML = '<div class="cmp-empty">' + escapeHtml(err.message) + '</div>';
+      });
+  }, 180);
+
+  if (aliasSearchInput) {
+    aliasSearchInput.addEventListener('input', runAliasTargetSearch);
+  }
+
+  if (aliasResults) {
+    aliasResults.addEventListener('click', function (ev) {
+      const btn = ev.target.closest('[data-cmp-team-alias-target-id]');
+      if (!btn) {
+        return;
+      }
+
+      aliasTargetId.value = btn.dataset.cmpTeamAliasTargetId || '';
+      aliasSearchInput.value = btn.dataset.cmpTeamAliasTargetLabel || aliasSearchInput.value;
+
+      aliasResults.querySelectorAll('.cmp-team-modal-result').forEach(function (item) {
+        item.classList.remove('is-selected');
+      });
+
+      btn.classList.add('is-selected');
+      aliasButton.disabled = aliasTargetId.value === '';
+    });
+  }
+
+  if (aliasButton) {
+    aliasButton.addEventListener('click', function () {
+      const alias = rawInput.value.trim();
+      const entityId = aliasTargetId.value.trim();
+
+      if (alias === '') {
+        modalMessage.textContent = 'Escribí el alias.';
+        return;
+      }
+
+      if (entityId === '') {
+        modalMessage.textContent = 'Seleccioná el equipo de destino.';
+        return;
+      }
+
+      const form = new FormData();
+      form.append('action', 'create_alias');
+      form.append('alias', alias);
+      form.append('entity_id', entityId);
+
+      modalMessage.textContent = 'Creando alias…';
+
+      fetch(teamAjaxUrl, {
+        method: 'POST',
+        body: form,
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
+            throw new Error(data.error || 'No se pudo crear el alias.');
+          }
+
+          if (activeTeamInput && data.entity) {
+            setTeamInputValue(activeTeamInput, normalizeItems({ items: [data.entity] })[0]);
+          }
+
+          closeTeamEntityModal();
+        })
+        .catch(function (err) {
+          modalMessage.textContent = err.message;
+        });
+    });
+  }
+})();
+</script>
 
 <?php cmp_render_footer(); ?>

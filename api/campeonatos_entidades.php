@@ -63,14 +63,11 @@ cmp_render_header('Entidades de campeonatos', 'container-fluid');
 
   <div class="cmp-ent-head">
     <div>
-      <p class="cmp-kicker">Campeonatos / vocabulario</p>
-      <h1>Equipos y entidades</h1>
-      <div class="cmp-meta">Administración básica de nombres, tipos y alias.</div>
+      <strong>Equipos y entidades.</strong> Administración básica de nombres, tipos y alias.
     </div>
-
-    <div class="cmp-actions">
+    <!--<div class="cmp-actions">
       <a class="cmp-btn" href="campeonatos_visor.php">Abrir visor</a>
-    </div>
+    </div>-->
   </div>
 
   <?php if ($message !== ''): ?>
@@ -110,7 +107,7 @@ cmp_render_header('Entidades de campeonatos', 'container-fluid');
     </form>
   </section>
 
-  <section class="cmp-card">
+  <!--<section class="cmp-card">
     <form method="get" class="cmp-ent-filters">
       <label>
         Buscar
@@ -139,7 +136,7 @@ cmp_render_header('Entidades de campeonatos', 'container-fluid');
       <button type="submit" class="cmp-btn cmp-btn-primary">Filtrar</button>
       <a href="campeonatos_entidades.php" class="cmp-btn">Limpiar</a>
     </form>
-  </section>
+  </section>-->
 
   <section class="cmp-card">
     <div class="cmp-card-head">

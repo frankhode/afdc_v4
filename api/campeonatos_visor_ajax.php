@@ -9,7 +9,72 @@ header('Content-Type: application/json; charset=utf-8');
 try {
     $action = trim((string)($_POST['action'] ?? $_GET['action'] ?? ''));
     $filters = cmp_visor_filters_from_request();
+    
+    if ($action === 'filters') {
+        $selectedId = (int)($filters['id'] ?? 0);
+        $selectedYear = trim((string)($filters['year'] ?? ''));
+        $selectedTeam1 = trim((string)($filters['team1'] ?? ''));
 
+        if ($selectedId > 0) {
+            $selectedImport = cmp_edit_get_import($selectedId);
+            if ($selectedImport) {
+                $importYear = trim((string)($selectedImport['temporada_detectada'] ?? ''));
+                if ($importYear !== '') {
+                    $selectedYear = $importYear;
+                }
+            } else {
+                $selectedId = 0;
+            }
+        }
+
+        $optionFilters = [
+            'year' => $selectedYear,
+            'team1' => $selectedTeam1,
+            'team2' => '',
+            'id' => 0,
+            'node_id' => 0,
+            'only_linked' => '0',
+        ];
+
+        $imports = cmp_visor_list_imports($optionFilters);
+
+        if ($selectedId > 0) {
+            $validSelectedId = false;
+            foreach ($imports as $row) {
+                if ((int)$row['id'] === $selectedId) {
+                    $validSelectedId = true;
+                    break;
+                }
+            }
+
+            if (!$validSelectedId) {
+                $selectedId = 0;
+            }
+        }
+
+        $filtersForLists = [
+            'year' => $selectedYear,
+            'team1' => $selectedTeam1,
+            'team2' => '',
+            'id' => $selectedId,
+            'node_id' => 0,
+            'only_linked' => '0',
+        ];
+
+        $years = cmp_visor_list_years_for_filters($filtersForLists);
+        $teams = cmp_visor_list_teams_for_filters($filtersForLists);
+
+        echo json_encode([
+            'ok' => true,
+            'selected_year' => $selectedYear,
+            'selected_id' => $selectedId,
+            'selected_team1' => $selectedTeam1,
+            'years_html' => cmp_visor_render_year_options_html($years, $selectedYear),
+            'imports_html' => cmp_visor_render_import_options_html($imports, $selectedId),
+            'teams_html' => cmp_visor_render_team_options_html($teams, $selectedTeam1),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
     if ($action === 'search') {
         $imports = cmp_visor_list_imports($filters);
 

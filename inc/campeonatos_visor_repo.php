@@ -107,15 +107,171 @@ function cmp_visor_list_teams(): array {
     return array_values($rows);
 }
 
+function cmp_visor_list_years_for_filters(array $filters): array {
+    $selectedId = (int)($filters['id'] ?? 0);
+    $team1 = trim((string)($filters['team1'] ?? ''));
+
+    if ($selectedId > 0) {
+        $import = cmp_edit_get_import($selectedId);
+        $year = trim((string)($import['temporada_detectada'] ?? ''));
+        return $year !== '' ? [$year] : cmp_visor_list_years();
+    }
+
+    if ($team1 === '') {
+        return cmp_visor_list_years();
+    }
+
+    $imports = cmp_visor_list_imports([
+        'year' => '',
+        'team1' => $team1,
+        'team2' => '',
+        'id' => 0,
+        'node_id' => 0,
+        'only_linked' => '0',
+    ]);
+
+    $years = [];
+    foreach ($imports as $row) {
+        $year = trim((string)($row['temporada_detectada'] ?? ''));
+        if ($year !== '') {
+            $years[$year] = true;
+        }
+    }
+
+    $rows = array_keys($years);
+    rsort($rows, SORT_NATURAL);
+
+    return $rows;
+}
+
+function cmp_visor_list_teams_for_filters(array $filters): array {
+    $selectedId = (int)($filters['id'] ?? 0);
+    $year = trim((string)($filters['year'] ?? ''));
+
+    if ($selectedId > 0) {
+        $entities = cmp_ent_list_used_in_matches($selectedId);
+        $rows = [];
+
+        foreach ($entities as $entity) {
+            $name = trim((string)($entity['nombre_mostrable'] ?? ''));
+            if ($name !== '') {
+                $rows[$name] = true;
+            }
+        }
+
+        $out = array_keys($rows);
+        natcasesort($out);
+
+        return array_values($out);
+    }
+
+    if ($year === '') {
+        return cmp_visor_list_teams();
+    }
+
+    $imports = cmp_visor_list_imports([
+        'year' => $year,
+        'team1' => '',
+        'team2' => '',
+        'id' => 0,
+        'node_id' => 0,
+        'only_linked' => '0',
+    ]);
+
+    $rows = [];
+
+    foreach ($imports as $import) {
+        $importId = (int)($import['id'] ?? 0);
+        if ($importId <= 0) {
+            continue;
+        }
+
+        $entities = cmp_ent_list_used_in_matches($importId);
+        foreach ($entities as $entity) {
+            $name = trim((string)($entity['nombre_mostrable'] ?? ''));
+            if ($name !== '') {
+                $rows[$name] = true;
+            }
+        }
+    }
+
+    $out = array_keys($rows);
+    natcasesort($out);
+
+    return array_values($out);
+}
+
+function cmp_visor_render_year_options_html(array $years, string $selectedYear = ''): string {
+    ob_start();
+
+    echo '<option value="">Todos</option>';
+    foreach ($years as $year) {
+        $year = trim((string)$year);
+        if ($year === '') {
+            continue;
+        }
+
+        echo '<option value="' . cmp_visor_h($year) . '"' . ($year === $selectedYear ? ' selected' : '') . '>';
+        echo cmp_visor_h($year);
+        echo '</option>';
+    }
+
+    return (string)ob_get_clean();
+}
+
+function cmp_visor_render_import_options_html(array $imports, int $selectedId = 0): string {
+    ob_start();
+
+    echo '<option value="">Seleccionar…</option>';
+
+    foreach ($imports as $row) {
+        $id = (int)($row['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+
+        $title = trim((string)($row['titulo_fuente'] ?? ''));
+        $year = trim((string)($row['temporada_detectada'] ?? ''));
+
+        $label = $title !== '' ? $title : ('Campeonato #' . $id);
+        if ($year !== '' && stripos($label, $year) === false) {
+            $label .= ' · ' . $year;
+        }
+
+        echo '<option value="' . $id . '"' . ($id === $selectedId ? ' selected' : '') . '>';
+        echo cmp_visor_h($label);
+        echo '</option>';
+    }
+
+    return (string)ob_get_clean();
+}
+
+function cmp_visor_render_team_options_html(array $teams, string $selectedTeam = ''): string {
+    ob_start();
+
+    echo '<option value="">Todos</option>';
+
+    foreach ($teams as $team) {
+        $team = trim((string)$team);
+        if ($team === '') {
+            continue;
+        }
+
+        echo '<option value="' . cmp_visor_h($team) . '"' . ($team === $selectedTeam ? ' selected' : '') . '>';
+        echo cmp_visor_h($team);
+        echo '</option>';
+    }
+
+    return (string)ob_get_clean();
+}
+
 function cmp_visor_has_global_filters(array $filters): bool {
-    return $filters['year'] !== '' || $filters['team1'] !== '';
+    return trim((string)($filters['year'] ?? '')) !== ''
+        || trim((string)($filters['team1'] ?? '')) !== ''
+        || (int)($filters['id'] ?? 0) > 0;
 }
 
 function cmp_visor_list_imports(array $filters): array {
-    if (!cmp_visor_has_global_filters($filters)) {
-        return [];
-    }
-
     $db = cmp_visor_db();
 
     $where = [];
@@ -380,11 +536,11 @@ function cmp_visor_render_import_cards_html(array $imports, int $selectedId = 0)
 function cmp_visor_render_structure_html(array $steps): string {
     ob_start();
 
-    echo '<section class="cmp-visor-structure">';
-    echo '<h3>Estructura del campeonato</h3>';
+    echo '<details class="cmp-visor-structure">';
+    echo '<summary>Estructura del campeonato / navegación alternativa</summary>';
 
     if ($steps === []) {
-        echo '<div class="cmp-empty">No hay etapas visibles para este filtro.</div>';
+        echo '<div class="cmp-empty" style="padding:0 12px 12px;">No hay etapas visibles para este filtro.</div>';
     } else {
         echo '<div class="cmp-visor-steps">';
         foreach ($steps as $idx => $step) {
@@ -398,7 +554,7 @@ function cmp_visor_render_structure_html(array $steps): string {
         echo '</div>';
     }
 
-    echo '</section>';
+    echo '</details>';
 
     return (string)ob_get_clean();
 }
@@ -601,11 +757,13 @@ function cmp_visor_render_championship_shell_html(array $context, string $team1,
     $steps = cmp_visor_collect_structure_steps($context['tree'], $team1, $team2);
 
     ob_start();
-    echo cmp_visor_render_structure_html($steps);
+
     echo '<section class="cmp-visor-shell">';
     echo cmp_visor_render_tree_panel_html($context['tree'], $team1, $team2);
     echo cmp_visor_render_empty_detail_html();
     echo '</section>';
+
+    echo cmp_visor_render_structure_html($steps);
 
     return (string)ob_get_clean();
 }

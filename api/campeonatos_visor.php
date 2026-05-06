@@ -5,11 +5,20 @@ require_once __DIR__ . '/../inc/bootstrap.php';
 require_once __DIR__ . '/../inc/campeonatos_visor_repo.php';
 
 $years = [];
+$imports = [];
 $teams = [];
 $error = '';
 
 try {
     $years = cmp_visor_list_years();
+    $imports = cmp_visor_list_imports([
+        'year' => '',
+        'team1' => '',
+        'team2' => '',
+        'id' => 0,
+        'node_id' => 0,
+        'only_linked' => '0',
+    ]);
     $teams = cmp_visor_list_teams();
 } catch (Throwable $e) {
     $error = $e->getMessage();
@@ -32,9 +41,42 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
 
 .cmp-visor-filters {
   display:grid;
-  grid-template-columns:minmax(140px,180px) minmax(220px,1fr);
+  grid-template-columns:minmax(120px,160px) minmax(260px,1fr) minmax(220px,320px);
   gap:10px;
   align-items:end;
+}
+
+.cmp-visor-status {
+  border:1px solid #d9dde4;
+  border-radius:12px;
+  background:#fff;
+  padding:10px 12px;
+  color:#5e6877;
+}
+
+.cmp-visor-current {
+  border:1px solid #d9dde4;
+  border-radius:14px;
+  background:#fff;
+  padding:14px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+
+.cmp-visor-current h2 {
+  margin:0;
+  font-size:24px;
+  line-height:1.15;
+}
+
+.cmp-visor-current-meta {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:8px;
 }
 .cmp-visor-filters label { display:grid; gap:4px; font-weight:600; }
 .cmp-visor-filters input,
@@ -289,6 +331,26 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
 @media (max-width: 780px) {
   .cmp-visor-filters { grid-template-columns:1fr; }
 }
+
+.cmp-visor-shell {
+  margin-top: 0;
+}
+
+.cmp-visor-structure {
+  margin-top: 12px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.cmp-visor-structure summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.cmp-visor-structure .cmp-visor-steps {
+  padding: 0 12px 12px;
+}
 </style>
 
 <section class="cmp-wrap cmp-visor-page" id="cmpVisorPage">
@@ -303,20 +365,21 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
       <label>
         Año
         <select name="year" id="cmpVisorYear">
-          <option value="">Todos</option>
-          <?php foreach ($years as $year): ?>
-            <option value="<?= cmp_visor_h((string)$year) ?>"><?= cmp_visor_h((string)$year) ?></option>
-          <?php endforeach; ?>
+          <?= cmp_visor_render_year_options_html($years, '') ?>
         </select>
       </label>
 
       <label>
-        Equipo 1
+        Campeonato
+        <select name="id" id="cmpVisorImport">
+          <?= cmp_visor_render_import_options_html($imports, 0) ?>
+        </select>
+      </label>
+
+      <label>
+        Equipo
         <select name="team1" id="cmpVisorTeam1">
-          <option value="">Todos</option>
-          <?php foreach ($teams as $team): ?>
-            <option value="<?= cmp_visor_h((string)$team) ?>"><?= cmp_visor_h((string)$team) ?></option>
-          <?php endforeach; ?>
+          <?= cmp_visor_render_team_options_html($teams, '') ?>
         </select>
       </label>
     </form>
@@ -328,7 +391,7 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
 
   <section id="cmpVisorImportsWrap">
     <div class="cmp-visor-empty-start">
-      Seleccioná un año o un equipo para empezar.
+      Seleccioná un campeonato para ver la estructura. También podés acotar primero por año o equipo.
     </div>
   </section>
 
@@ -340,17 +403,19 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
   const importsWrap = document.getElementById('cmpVisorImportsWrap');
   const shellWrap = document.getElementById('cmpVisorShellWrap');
   const yearInput = document.getElementById('cmpVisorYear');
+  const importInput = document.getElementById('cmpVisorImport');
   const team1Input = document.getElementById('cmpVisorTeam1');
 
-  let selectedImportId = 0;
+  let selectedImportId = parseInt(importInput.value || '0', 10) || 0;
   let selectedNodeId = 0;
+  let refreshingFilters = false;
 
-  function hasGlobalFilters() {
-    return (yearInput.value || '').trim() !== '' || (team1Input.value || '').trim() !== '';
+  function setImportsEmpty(message) {
+    importsWrap.innerHTML = '<div class="cmp-visor-empty-start">' + (message || 'Seleccioná un campeonato para ver la estructura.') + '</div>';
   }
 
-  function setImportsEmpty() {
-    importsWrap.innerHTML = '<div class="cmp-visor-empty-start">Seleccioná un año o un equipo para empezar.</div>';
+  function setImportsStatus(message) {
+    importsWrap.innerHTML = '<div class="cmp-visor-status">' + message + '</div>';
   }
 
   function setShellEmpty() {
@@ -384,32 +449,62 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
     return json;
   }
 
-  async function loadChampionships() {
-    if (!hasGlobalFilters()) {
-      setImportsEmpty();
-      setShellEmpty();
-      return;
+  async function refreshFilters(changedBy) {
+    if (refreshingFilters) return;
+    refreshingFilters = true;
+
+    if (changedBy === 'year') {
+      importInput.value = '';
+      selectedImportId = 0;
     }
 
-    setLoading(importsWrap, 'Buscando campeonatos...');
-    setShellEmpty();
+    if (changedBy === 'import') {
+      selectedImportId = parseInt(importInput.value || '0', 10) || 0;
+    }
+
+    const previousImportId = selectedImportId;
 
     try {
       const json = await postAjax({
-        action: 'search',
+        action: 'filters',
         year: yearInput.value || '',
+        id: String(selectedImportId || 0),
         team1: team1Input.value || ''
       });
 
       if (!json.ok) {
-        importsWrap.innerHTML = '<div class="cmp-alert cmp-alert-error">' + (json.error || 'Error') + '</div>';
+        setImportsEmpty(json.error || 'Error actualizando filtros.');
+        setShellEmpty();
         return;
       }
 
-      importsWrap.innerHTML = json.championships_html || '<div class="cmp-empty">Sin resultados.</div>';
-      bindImportCards();
+      yearInput.innerHTML = json.years_html || '<option value="">Todos</option>';
+      importInput.innerHTML = json.imports_html || '<option value="">Seleccionar…</option>';
+      team1Input.innerHTML = json.teams_html || '<option value="">Todos</option>';
+
+      yearInput.value = json.selected_year || '';
+      importInput.value = String(json.selected_id || '');
+      team1Input.value = json.selected_team1 || '';
+
+      selectedImportId = parseInt(json.selected_id || '0', 10) || 0;
+
+      if (selectedImportId > 0) {
+        importsWrap.innerHTML = '';
+        await loadChampionship(selectedImportId);
+      } else {
+        setShellEmpty();
+
+        if ((team1Input.value || '') !== '' || (yearInput.value || '') !== '') {
+          setImportsStatus('Seleccioná un campeonato de la lista para ver la estructura.');
+        } else {
+          setImportsEmpty('Seleccioná un campeonato para ver la estructura. También podés acotar primero por año o equipo.');
+        }
+      }
     } catch (err) {
-      importsWrap.innerHTML = '<div class="cmp-alert cmp-alert-error">' + (err && err.message ? err.message : 'Error buscando campeonatos.') + '</div>';
+      setImportsEmpty(err && err.message ? err.message : 'Error actualizando filtros.');
+      setShellEmpty();
+    } finally {
+      refreshingFilters = false;
     }
   }
 
@@ -437,7 +532,6 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
       }
 
       shellWrap.innerHTML = json.shell_html || '';
-      markCurrentImport();
       bindShellInteractions();
     } catch (err) {
       shellWrap.innerHTML = '<div class="cmp-alert cmp-alert-error">' + (err && err.message ? err.message : 'Error cargando el campeonato.') + '</div>';
@@ -476,23 +570,6 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
     } catch (err) {
       rightPanel.innerHTML = '<div class="cmp-alert cmp-alert-error">' + (err && err.message ? err.message : 'Error cargando el nodo.') + '</div>';
     }
-  }
-
-  function markCurrentImport() {
-    document.querySelectorAll('[data-import-id]').forEach(el => {
-      const id = parseInt(el.getAttribute('data-import-id') || '0', 10);
-      el.classList.toggle('is-current', id === selectedImportId);
-    });
-  }
-
-  function bindImportCards() {
-    document.querySelectorAll('[data-import-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.getAttribute('data-import-id') || '0', 10);
-        if (!id) return;
-        loadChampionship(id);
-      });
-    });
   }
 
   function bindTreeToggles() {
@@ -717,8 +794,13 @@ cmp_render_header('Visor de campeonatos', 'container-fluid');
     });
   }
 
-  yearInput.addEventListener('change', loadChampionships);
-  team1Input.addEventListener('change', loadChampionships);
+  yearInput.addEventListener('change', () => refreshFilters('year'));
+  importInput.addEventListener('change', () => refreshFilters('import'));
+  team1Input.addEventListener('change', () => refreshFilters('team'));
+
+  if (selectedImportId > 0) {
+    loadChampionship(selectedImportId);
+  }
 })();
 </script>
 
