@@ -270,29 +270,36 @@ $porcentajeDigital = $barcodes > 0 ? round(($digitalizados / $barcodes) * 100, 1
 include __DIR__ . '/inc/header.php';
 ?>
 
-<style>  
+<style>
 .futbol-v4 {
   display: grid;
   gap: 18px;
+  color: var(--afdc-text);
 }
 
 .futbol-link {
-  color: inherit;
+  color: var(--afdc-link);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.futbol-v4__head,
+.futbol-card,
+.futbol-panel {
+  border: 1px solid var(--afdc-border);
+  background: var(--afdc-card);
+  color: var(--afdc-text);
 }
 
 .futbol-v4__head {
   display: grid;
   gap: 8px;
   padding: 18px;
-  border: 1px solid var(--border);
-  background: var(--panel);
 }
 
 .futbol-v4__eyebrow {
   font-size: .85rem;
-  opacity: .75;
+  color: var(--afdc-muted);
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -300,12 +307,13 @@ include __DIR__ . '/inc/header.php';
 .futbol-v4__title {
   margin: 0;
   font-size: clamp(1.8rem, 3vw, 3rem);
+  color: var(--afdc-text);
 }
 
 .futbol-v4__lead {
   max-width: 900px;
   margin: 0;
-  opacity: .85;
+  color: var(--afdc-muted);
   line-height: 1.5;
 }
 
@@ -316,20 +324,19 @@ include __DIR__ . '/inc/header.php';
 }
 
 .futbol-card {
-  border: 1px solid var(--border);
-  background: var(--panel);
   padding: 14px;
 }
 
 .futbol-card__label {
   font-size: .82rem;
-  opacity: .75;
+  color: var(--afdc-muted);
   margin-bottom: 8px;
 }
 
 .futbol-card__value {
   font-size: 1.7rem;
   font-weight: 700;
+  color: var(--afdc-text);
 }
 
 .futbol-grid {
@@ -339,14 +346,13 @@ include __DIR__ . '/inc/header.php';
 }
 
 .futbol-panel {
-  border: 1px solid var(--border);
-  background: var(--panel);
   padding: 14px;
 }
 
 .futbol-panel h2 {
   margin: 0 0 12px;
   font-size: 1.2rem;
+  color: var(--afdc-text);
 }
 
 .futbol-table-wrap {
@@ -357,11 +363,12 @@ include __DIR__ . '/inc/header.php';
   width: 100%;
   border-collapse: collapse;
   font-size: .92rem;
+  color: var(--afdc-text);
 }
 
 .futbol-table th,
 .futbol-table td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--afdc-border);
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
@@ -371,7 +378,7 @@ include __DIR__ . '/inc/header.php';
   font-size: .8rem;
   text-transform: uppercase;
   letter-spacing: .04em;
-  opacity: .75;
+  color: var(--afdc-muted);
 }
 
 .futbol-table td.num,
@@ -385,14 +392,16 @@ include __DIR__ . '/inc/header.php';
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--afdc-border);
   border-radius: 999px;
   font-size: .8rem;
   white-space: nowrap;
+  background: var(--afdc-btn);
+  color: var(--afdc-text);
 }
 
 .futbol-muted {
-  opacity: .72;
+  color: var(--afdc-muted);
 }
 
 .futbol-actions {
@@ -400,6 +409,16 @@ include __DIR__ . '/inc/header.php';
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 8px;
+}
+
+.futbol-badge--link {
+  color: var(--afdc-text);
+  text-decoration: none;
+}
+
+.futbol-badge--link:hover {
+  background: var(--afdc-btn-hover);
+  text-decoration: underline;
 }
 
 @media (max-width: 1050px) {
@@ -412,15 +431,6 @@ include __DIR__ . '/inc/header.php';
   .futbol-v4__cards {
     grid-template-columns: 1fr;
   }
-}
-
-.futbol-badge--link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.futbol-badge--link:hover {
-  text-decoration: underline;
 }
 </style>
 

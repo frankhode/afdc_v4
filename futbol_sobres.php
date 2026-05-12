@@ -352,16 +352,23 @@ include __DIR__ . '/inc/header.php';
 .futbol-sobres {
   display: grid;
   gap: 16px;
+  color: var(--afdc-text);
+}
+
+.futbol-sobres__head,
+.futbol-card,
+.futbol-panel {
+  border: 1px solid var(--afdc-border);
+  background: var(--afdc-card);
+  color: var(--afdc-text);
 }
 
 .futbol-sobres__head {
-  border: 1px solid var(--border);
-  background: var(--panel);
   padding: 16px;
 }
 
 .futbol-sobres__kicker {
-  opacity: .75;
+  color: var(--afdc-muted);
   font-size: .85rem;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -371,10 +378,11 @@ include __DIR__ . '/inc/header.php';
 .futbol-sobres__title {
   margin: 0;
   font-size: clamp(1.6rem, 2.5vw, 2.4rem);
+  color: var(--afdc-text);
 }
 
 .futbol-muted {
-  opacity: .72;
+  color: var(--afdc-muted);
 }
 
 .futbol-actions {
@@ -391,31 +399,29 @@ include __DIR__ . '/inc/header.php';
 }
 
 .futbol-card {
-  border: 1px solid var(--border);
-  background: var(--panel);
   padding: 14px;
 }
 
 .futbol-card__label {
   font-size: .82rem;
-  opacity: .75;
+  color: var(--afdc-muted);
   margin-bottom: 8px;
 }
 
 .futbol-card__value {
   font-size: 1.55rem;
   font-weight: 700;
+  color: var(--afdc-text);
 }
 
 .futbol-panel {
-  border: 1px solid var(--border);
-  background: var(--panel);
   padding: 14px;
 }
 
 .futbol-panel h2 {
   margin: 0 0 12px;
   font-size: 1.15rem;
+  color: var(--afdc-text);
 }
 
 .futbol-form {
@@ -447,7 +453,7 @@ include __DIR__ . '/inc/header.php';
 
 .futbol-field label {
   font-size: .8rem;
-  opacity: .75;
+  color: var(--afdc-muted);
 }
 
 .futbol-field input,
@@ -455,9 +461,20 @@ include __DIR__ . '/inc/header.php';
   width: 100%;
   min-height: 38px;
   padding: 6px 8px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: inherit;
+  border: 1px solid var(--afdc-border);
+  background: var(--afdc-btn);
+  color: var(--afdc-text);
+  border-radius: 10px;
+}
+
+.futbol-field input::placeholder {
+  color: var(--afdc-muted);
+}
+
+.futbol-field input:focus,
+.futbol-field select:focus {
+  outline: 2px solid var(--afdc-link);
+  outline-offset: 1px;
 }
 
 .futbol-form .btn {
@@ -472,11 +489,12 @@ include __DIR__ . '/inc/header.php';
   width: 100%;
   border-collapse: collapse;
   font-size: .9rem;
+  color: var(--afdc-text);
 }
 
 .futbol-table th,
 .futbol-table td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--afdc-border);
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
@@ -486,7 +504,7 @@ include __DIR__ . '/inc/header.php';
   font-size: .78rem;
   text-transform: uppercase;
   letter-spacing: .04em;
-  opacity: .75;
+  color: var(--afdc-muted);
 }
 
 .futbol-table td.num,
@@ -500,14 +518,16 @@ include __DIR__ . '/inc/header.php';
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--afdc-border);
   border-radius: 999px;
   font-size: .8rem;
   white-space: nowrap;
+  background: var(--afdc-btn);
+  color: var(--afdc-text);
 }
 
 .futbol-link {
-  color: inherit;
+  color: var(--afdc-link);
 }
 
 .futbol-title-cell {
@@ -532,10 +552,11 @@ include __DIR__ . '/inc/header.php';
 
 .futbol-digital-ok {
   font-weight: 700;
+  color: var(--afdc-text);
 }
 
 .futbol-digital-no {
-  opacity: .65;
+  color: var(--afdc-muted);
 }
 
 @media (max-width: 760px) {
