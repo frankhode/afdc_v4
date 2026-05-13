@@ -97,7 +97,8 @@ $__isAdmin = $__logged && (($__u['role'] ?? '') === 'admin');
             <?php if ($__isAdmin): ?>
               <a class="nav__drop" href="<?= $base ?>/exposiciones.php">Exposiciones</a>
               <a class="nav__drop is-disabled" href="#" aria-disabled="true">Colecciones curadas</a>
-              <a class="nav__drop" href="api/campeonatos_importaciones.php">Importar campeonatos</a>
+              <a class="nav__drop" href="<?= $base ?>/api/futbol_sobres_bandeja.php">Bandeja de sobres de fútbol</a>
+              <a class="nav__drop" href="<?= $base ?>/api/campeonatos_importaciones.php">Importar campeonatos</a>
               <a class="nav__drop" href="<?= $base ?>/api/campeonatos_relacion_sobres.php">Relacionar sobres ↔ partidos</a>
               <a class="nav__drop" href="<?= h(BASE_URL . '/contactos.php') ?>">Hojas de contacto</a>
             <?php endif; ?>
