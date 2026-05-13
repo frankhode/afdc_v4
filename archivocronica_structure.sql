@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 29-04-2026 a las 00:33:42
+-- Tiempo de generación: 14-05-2026 a las 00:31:21
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -542,6 +542,28 @@ CREATE TABLE `fototeca_revision_bolsa` (
   `nota` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `futbol_sobres_clasificacion`
+--
+
+CREATE TABLE `futbol_sobres_clasificacion` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `sys` varchar(32) NOT NULL,
+  `barcode` varchar(64) NOT NULL,
+  `estado` enum('pendiente','partido_posible','futbol_general','listo_para_relacionar','vinculado','dudoso','descartado') NOT NULL DEFAULT 'pendiente',
+  `equipo1_texto` varchar(255) DEFAULT NULL,
+  `equipo2_texto` varchar(255) DEFAULT NULL,
+  `equipo_principal_texto` varchar(255) DEFAULT NULL,
+  `fecha_sugerida` varchar(32) DEFAULT NULL,
+  `fecha_precision` varchar(32) DEFAULT NULL,
+  `campeonato_sugerido_texto` varchar(255) DEFAULT NULL,
+  `notas` text DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1103,6 +1125,16 @@ ALTER TABLE `fototeca_revision_bolsa`
   ADD KEY `idx_coleccion_asignada` (`coleccion_asignada`);
 
 --
+-- Indices de la tabla `futbol_sobres_clasificacion`
+--
+ALTER TABLE `futbol_sobres_clasificacion`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_futbol_sobres_barcode` (`barcode`),
+  ADD KEY `idx_futbol_sobres_sys` (`sys`),
+  ADD KEY `idx_futbol_sobres_estado` (`estado`),
+  ADD KEY `idx_futbol_sobres_fecha_sugerida` (`fecha_sugerida`);
+
+--
 -- Indices de la tabla `indizimagenes`
 --
 ALTER TABLE `indizimagenes`
@@ -1380,6 +1412,12 @@ ALTER TABLE `fotografos_sobres`
 -- AUTO_INCREMENT de la tabla `fototeca_revision_bolsa`
 --
 ALTER TABLE `fototeca_revision_bolsa`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `futbol_sobres_clasificacion`
+--
+ALTER TABLE `futbol_sobres_clasificacion`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
